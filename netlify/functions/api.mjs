@@ -62,7 +62,7 @@ const activeAdmins = us => us.filter(u => u.role === 'admin' && u.active).length
 
 // ---------- permissions & DTOs ----------
 const assignable = (me, us) =>
-  me.role === 'admin' ? us.filter(u => u.active)
+  me.role === 'admin' ? us.filter(u => u.active && u.role !== 'admin')   // Heads assign to Supervisors and Staff only: never to themselves or any other Head (incl. the default admin)
   : me.role === 'host' ? us.filter(u => u.active && u.role === 'staff' && u.hostIds.includes(me.id)) : [];
 const hostsFor = (ids, us) => uniq(ids.flatMap(id => { const u = us.find(x => x.id === id); return u && u.role === 'staff' ? u.hostIds : []; }));
 const canManage = (me, t) => me.role === 'admin' || (me.role === 'host' && (t.createdBy === me.id || t.hostIds.includes(me.id)));

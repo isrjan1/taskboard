@@ -84,6 +84,27 @@ await N('/users/' + created.id, 'PUT', { name: 'Staff One', role: 'staff', activ
 check('admin password reset signs that user out everywhere', (await S('/me')).status === 401);
 check('admin changing their own password via Users keeps their session', (await N('/users/u_admin', 'PUT', { name: 'Administrator', role: 'admin', active: true, password: 'admin-new-789' })).status === 200 && (await N('/me')).status === 200);
 
+console.log('Heads (admins) never receive tasks');
+await N('/users', 'POST', { username: 'head2', name: 'Second Head', role: 'admin', password: 'head-pass-2' });
+await N('/users', 'POST', { username: 'sup1', name: 'Supervisor', role: 'host', password: 'sup-pass-12' });
+const users = (await N('/users')).d.users, id = u => users.find(x => x.username === u).id;
+await N('/users', 'POST', { username: 'staff2', name: 'Staff Two', role: 'staff', password: 'staff-pass-2', hostIds: [id('sup1')] });
+const staff2 = (await N('/users')).d.users.find(x => x.username === 'staff2').id;
+const task = a => ({ title: 'Do it', description: '', priority: 'Now', date: '2026-02-01', assignees: a });
+const people = (await N('/people')).d.people.map(x => x.username);
+check("the Head's 'assign to' list excludes every Head (including the default admin)", !people.includes('admin') && !people.includes('head2'));
+check("...but still lists supervisors and staff", people.includes('sup1') && people.includes('staff2'));
+check('a Head cannot assign a task to themselves', (await N('/shared', 'POST', task(['u_admin']))).status === 403);
+check('a Head cannot assign a task to another Head', (await N('/shared', 'POST', task([id('head2')]))).status === 403);
+check('a Head cannot assign to [staff + a Head] together', (await N('/shared', 'POST', task([staff2, id('head2')]))).status === 403);
+const ok = await N('/shared', 'POST', task([staff2, id('sup1')]));
+check('a Head can still assign to staff and supervisors', ok.status === 201);
+check('a Head cannot add a Head to an existing task', (await N('/shared/' + ok.d.id, 'PUT', { assignees: [staff2, 'u_admin'] })).status === 403);
+const H2 = browser(); await H2('/login', 'POST', { username: 'head2', password: 'head-pass-2' });
+check('a NEW Head cannot assign a task to the default admin', (await H2('/shared', 'POST', task(['u_admin']))).status === 403);
+check('a NEW Head cannot assign a task to themselves', (await H2('/shared', 'POST', task([id('head2')]))).status === 403);
+check('a NEW Head can assign to staff', (await H2('/shared', 'POST', task([staff2]))).status === 201);
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');
 process.exit(failed ? 1 : 0);

@@ -11,7 +11,7 @@ One app, two calendars:
 Switch with the two big buttons under the header (or press **P** / **S**). Your last choice is remembered.
 
 ## Roles
-- **Head (admin)** – assigns tasks to anyone, manages users, links staff to supervisors, exports/imports backups.
+- **Head (admin)** – assigns tasks to Supervisors and Staff (never to themselves or any other Head, including the default `admin`), manages users, links staff to supervisors, exports/imports backups.
 - **Supervisor (host)** – assigns tasks to *their own* staff, edits/closes/trashes them, sees progress per person.
 - **Staff** – sees tasks assigned to them, taps **✔ Mark done** for their part. A staff member can report to several supervisors.
 
@@ -41,8 +41,8 @@ netlify dev
 ```
 npm test
 ```
-Runs 22 checks against the real API with an in-memory stand-in for Netlify Blobs (no network, no extra dependencies).
-See `IMPROVEMENTS.md` for the review, the logout fix, and what changed in v2.1.
+Runs 32 checks against the real API with an in-memory stand-in for Netlify Blobs (no network, no extra dependencies).
+See `IMPROVEMENTS.md` for the review, the logout fix, and what changed in v2.2.
 
 ## Upgrading from the earlier calendar-only version
 Same storage name, so existing accounts and personal boards carry over. Old `user` accounts become **Staff**; everyone is logged out once (new cookie sessions). Existing admin passwords are unchanged (`ADMIN_INITIAL_PASSWORD` is only used when no users exist yet).
