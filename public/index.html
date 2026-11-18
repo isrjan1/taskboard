@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Calendar Task Board (PH)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Fredoka:wght@400..700&family=Quicksand:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="th-white" data-mode="personal">
+<script src="auth.js"></script>
+<header class="panel top">
+  <div>
+    <h1>🗓️ Smart Calendar Task Board</h1>
+    <p class="sub">Philippine calendar · click a date to open its board</p>
+  </div>
+  <div class="row">
+    <span class="stat" id="who"></span>
+    <a class="mini" id="usersLink" href="users.html" hidden>👥 Users</a>
+    <button class="mini" id="acctBtn">🔑 Password</button>
+    <button class="mini" onclick="logout()">⎋ Log out</button>
+    <span class="sub">Theme:</span>
+    <button class="sw" data-th="white" style="background:#fff" title="Classic White" aria-label="White theme"></button>
+    <button class="sw" data-th="dark" style="background:#0f172a" title="Dark" aria-label="Dark theme"></button>
+    <button class="sw" data-th="pink" style="background:#f9a8d4" title="Pink" aria-label="Pink theme"></button>
+    <button class="sw" data-th="cepalco" style="background:linear-gradient(#000 50%,#facc15 50%)" title="CEPALCO" aria-label="CEPALCO theme"></button>
+    <div class="stat"><b id="sActive">0</b>Active</div>
+    <div class="stat ok"><b id="sDone">0</b>Done</div>
+    <div class="stat bad"><b id="sOver">0</b>Overdue</div>
+  </div>
+</header>
+
+<nav class="modebar" aria-label="Calendar type">
+  <button class="mode on" data-mode="personal" aria-pressed="true">
+    <span class="ico">👤</span><span><b>Personal</b><small id="pSub">Your private notes</small></span><em id="bP">0</em>
+  </button>
+  <button class="mode" data-mode="shared" aria-pressed="false">
+    <span class="ico">👥</span><span><b>Shared</b><small id="sSub">Team tasks</small></span><em id="bS">0</em>
+  </button>
+</nav>
+<p class="sub hint">Tip: press <b>P</b> for Personal · <b>S</b> for Shared · <b>T</b> for today</p>
+
+<main class="panel cal">
+  <div class="calbar">
+    <button class="btn" id="prev" aria-label="Previous month">‹</button>
+    <h2 id="monthTitle"></h2>
+    <button class="btn" id="next" aria-label="Next month">›</button>
+    <button class="btn pri" id="goToday">Today</button>
+    <label class="filter" id="filWrap" hidden>👁 Show <select id="fil"></select></label>
+  </div>
+  <div class="grid head"><span class="red">Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+  <div class="grid" id="days"></div>
+  <p class="sub legend"><i class="dot hol"></i> Holiday (common PH list — confirm with official proclamations) · <i class="dot tdy"></i> Today (Manila time)</p>
+</main>
+
+<section class="panel agenda">
+  <h3 id="agTitle">Coming up</h3>
+  <div id="agList"></div>
+</section>
+
+<div id="modal" class="overlay" hidden>
+  <div class="panel board" role="dialog" aria-modal="true">
+    <div class="bhead">
+      <div><h2 id="bTitle"></h2><div id="bHol" class="holtag"></div><span class="pill" id="bMode"></span></div>
+      <button class="x" id="bClose" title="Close (Esc)" aria-label="Close">×</button>
+    </div>
+    <div class="tabs">
+      <button data-v="board" class="on">📋 Board</button>
+      <button data-v="done">✅ Completed <span id="cDone">0</span></button>
+      <button data-v="trash" id="tabTrash">🗑 Trash <span id="cTrash">0</span></button>
+    </div>
+    <div id="bBody"></div>
+  </div>
+</div>
+
+<div id="acct" class="overlay" hidden>
+  <form class="panel dlg" id="acctF">
+    <h2>🔑 Change password</h2>
+    <p class="sub" id="acctNote">Use at least 8 characters.</p>
+    <input id="cp0" type="password" placeholder="Current password" autocomplete="current-password" required>
+    <input id="cp1" type="password" placeholder="New password" minlength="8" autocomplete="new-password" required>
+    <input id="cp2" type="password" placeholder="Repeat new password" minlength="8" autocomplete="new-password" required>
+    <div class="row"><button class="btn pri" type="submit">Save password</button><button class="btn" type="button" id="cpX">Cancel</button></div>
+  </form>
+</div>
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

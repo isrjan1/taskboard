@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in · Smart Calendar Task Board</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400..700&family=Quicksand:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head>
+<body class="th-white" style="display:flex;align-items:center;justify-content:center">
+<script src="auth.js"></script>
+<form class="panel" id="f" style="width:100%;max-width:380px;display:grid;gap:10px;margin:0">
+  <div style="text-align:center"><div style="font-size:2.4rem">🗓️</div><h1>Smart Task Board</h1><p class="sub">Log in to open your calendar</p></div>
+  <input id="u" placeholder="Username" autocomplete="username" autocapitalize="none" required autofocus>
+  <input id="p" type="password" placeholder="Password" autocomplete="current-password" required>
+  <div id="err" class="bad" style="font-size:.78rem;font-weight:700;min-height:1.2em"></div>
+  <button class="btn pri big" type="submit">Log in</button>
+</form>
+<script>
+(async()=>{
+  if(await currentUser())return location.replace('index.html');
+  const btn=document.querySelector('button'),err=document.getElementById('err');
+  document.getElementById('f').onsubmit=async e=>{
+    e.preventDefault();btn.disabled=true;btn.textContent='Logging in…';err.textContent='';
+    try{await login(document.getElementById('u').value,document.getElementById('p').value);location.href='index.html'}
+    catch(x){err.textContent=x.status?x.message:'Cannot reach the server. Check your connection.';btn.disabled=false;btn.textContent='Log in'}
+  };
+})();
+</script></body></html>
