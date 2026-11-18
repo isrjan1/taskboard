@@ -62,6 +62,8 @@ function setMode(m){
   mode=m;localStorage.setItem('stb_mode',m);document.body.dataset.mode=m;
   document.querySelectorAll('.mode').forEach(b=>{const on=b.dataset.mode===m;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});
   $('#filWrap').hidden=!(m==='shared'&&isMgr()&&PEOPLE.length>0);
+  $('#starWrap').hidden=!(m==='personal'&&ME.overview);
+  if(m!=='personal')$('#starPop').hidden=true;
   renderAll();
 }
 document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>{if(!openDate)setMode(b.dataset.mode)});
@@ -381,6 +383,12 @@ $('#acctF').onsubmit=async e=>{
   if(P.theme&&P.theme!==(localStorage.getItem('stb_theme')||'white')){localStorage.setItem('stb_theme',P.theme);applyTheme(P.theme)}
   $('#who').innerHTML=`<b style="font-size:.85rem">${esc(ME.name||ME.username)}</b><span class="role">${ROLE[ME.role]}</span>`;
   $('#usersLink').hidden=ME.role!=='admin';
+  if(ME.overview){   // default admin only: discreet star -> popover -> all-users overview page
+    const sb=$('#starBtn'),sp=$('#starPop'),close=()=>{sp.hidden=true;sb.setAttribute('aria-expanded','false')};
+    sb.onclick=e=>{e.stopPropagation();sp.hidden=!sp.hidden;sb.setAttribute('aria-expanded',String(!sp.hidden))};
+    document.addEventListener('click',e=>{if(!sp.contains(e.target))close()});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+  }
   try{
     const [s,p]=await Promise.all([api('/api/shared'),isMgr()?api('/api/people'):Promise.resolve({people:[]})]);
     SH=s.tasks;PEOPLE=p.people;

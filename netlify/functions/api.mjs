@@ -14,6 +14,7 @@ const same = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(Strin
 const uniq = a => [...new Set(Array.isArray(a) ? a.map(String) : [])];
 
 const ROLES = ['admin', 'host', 'staff'];            // admin = head, host = supervisor, staff
+const DEFAULT_ADMIN = 'u_admin';                       // only the original admin account may use the all-users overview
 const PRIORITIES = ['Now', 'Next', 'Later'];
 const THEMES = ['white', 'dark', 'pink', 'cepalco'];
 const PALETTE = { Now: ['#cbfec9', '#ebd3ff', '#dfc3ff'], Next: ['#fff3a1', '#c3e2ff'], Later: ['#ffd1ea', '#cbfec9'] };
@@ -157,7 +158,7 @@ export default async (req) => {
     const me = us.find(x => x.id === sess.id && x.active);
     if (!me || (sess.pv || 0) !== me.pv) throw H('Not logged in', 401);   // disabled user, or password changed/reset since this login
 
-    if (path === '/me' && m === 'GET') return J({ user: pub(me, us), board: await st.get('board:' + me.id, { type: 'json' }) });
+    if (path === '/me' && m === 'GET') return J({ user: { ...pub(me, us), overview: me.id === DEFAULT_ADMIN }, board: await st.get('board:' + me.id, { type: 'json' }) });
 
     if (path === '/change-password' && m === 'POST') {
       const cur = String(body.currentPassword || ''), next = String(body.newPassword || '');
@@ -238,6 +239,14 @@ export default async (req) => {
         return t;
       });
       return out ? J(taskDTO(out, me, us)) : J({ ok: 1 });
+    }
+
+    // ----- default admin only: read-only view of every user's personal sticky notes -----
+    if (path === '/personal-all' && m === 'GET') {
+      if (me.id !== DEFAULT_ADMIN) throw H('Not allowed', 403);
+      const tasks = [];
+      for (const u of us) { const b = await st.get('board:' + u.id, { type: 'json' }); for (const t of (b?.tasks || [])) tasks.push({ ...t, userId: u.id }); }
+      return J({ users: us.map(u => ({ id: u.id, name: u.name || u.username, username: u.username, role: u.role, active: u.active })), tasks });
     }
 
     // ----- admin only -----

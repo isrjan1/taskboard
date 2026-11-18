@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>All Users' Sticky Notes · Smart Calendar Task Board</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400..700&family=Quicksand:wght@400..700&family=Architects+Daughter&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--gap);margin-top:14px}
+.ctl label{display:grid;gap:4px;font-size:.68rem;font-weight:800;text-transform:uppercase;opacity:.9}
+.ctl select{width:100%}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--soft);border:1px solid var(--bd);border-radius:var(--r);max-width:1100px;margin:0 auto 14px}
+.seg button{min-height:40px;border:0;border-radius:10px;background:transparent;font-weight:800;opacity:.7}
+.seg button.on{background:var(--acc);color:var(--acci);opacity:1}
+.ulist{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.up{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border:2px solid var(--bd);border-radius:99px;background:var(--soft);font-size:.78rem;font-weight:800}
+.up b{background:var(--panel);border:1px solid var(--bd);border-radius:99px;padding:0 8px;font-size:.7rem}
+.up.on{border-color:var(--acc);background:var(--acc);color:var(--acci)}
+.row2{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.chip b{font-weight:800}
+.pri-Now{border-left:4px solid #f87171}.pri-Next{border-left:4px solid #facc15}.pri-Later{border-left:4px solid #4ade80}
+.card{border:1px solid var(--bd);border-radius:var(--r);padding:12px;margin-bottom:8px;background:var(--soft);display:grid;gap:4px}
+.card .top2{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.card h4{font-family:'Architects Daughter',cursive;font-size:1rem;word-break:break-word}
+.card p{margin:0;font-size:.78rem;opacity:.8;word-break:break-word}
+.tags{display:flex;flex-wrap:wrap;gap:6px;font-size:.68rem;font-weight:800}
+.tags span{border:1px solid var(--bd);background:var(--panel);border-radius:99px;padding:2px 9px}
+.gh{font-family:Fredoka,sans-serif;margin:16px 0 8px;font-size:1rem;display:flex;justify-content:space-between}
+.sw3{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px;border:1px solid rgba(0,0,0,.2)}
+.ro{font-size:.7rem;font-weight:800;background:var(--soft);border:1px dashed var(--acc);border-radius:99px;padding:3px 10px;white-space:nowrap}
+</style></head>
+<body class="th-white">
+<script src="auth.js"></script>
+<header class="panel top">
+  <div class="brand"><h1>⭐ All Users' Sticky Notes</h1><p class="sub">Personal calendars of every user · read-only overview</p></div>
+  <div class="toolbar">
+    <a class="mini" href="index.html">← Back to calendar</a>
+    <span class="ro">👁 View only</span>
+    <div class="stats">
+      <div class="stat"><b id="cUsers">0</b>Users</div>
+      <div class="stat"><b id="cNotes">0</b>Notes shown</div>
+      <div class="stat"><b id="cAll">0</b>Total</div>
+    </div>
+  </div>
+  <div class="ctl">
+    <label>Status<select id="fStatus"><option value="active">Active</option><option value="done">Completed</option><option value="trash">Trash</option><option value="all">All</option></select></label>
+    <label>Priority<select id="fPri"><option value="all">All</option><option>Now</option><option>Next</option><option>Later</option></select></label>
+    <label>Sort by<select id="fSort"><option value="date">Date</option><option value="user">User (A–Z)</option><option value="priority">Priority</option><option value="status">Status</option><option value="title">Title (A–Z)</option></select></label>
+    <label>Order<select id="fDir"><option value="1">Ascending ↑</option><option value="-1">Descending ↓</option></select></label>
+    <label>Search<input id="fQ" type="search" placeholder="Title or details…"></label>
+  </div>
+  <div class="ulist" id="ulist" role="group" aria-label="Filter by user"></div>
+</header>
+
+<div class="seg" role="tablist"><button id="vCal" class="on">📅 Calendar</button><button id="vList">📋 List &amp; Sort</button></div>
+
+<main class="panel" id="calP">
+  <div class="calbar"><button class="btn" id="prev" aria-label="Previous month">‹</button><h2 id="mt"></h2><button class="btn" id="next" aria-label="Next month">›</button><button class="btn" id="goToday">Today</button></div>
+  <div class="grid head"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+  <div class="grid" id="grid"></div>
+  <p class="sub legend"><span class="dot tdy"></span> Today · numbers show how many notes fall on that day · tap a day to see who owns what</p>
+</main>
+<main class="panel" id="listP" hidden>
+  <div class="row2"><h3 id="lh">Notes</h3><label class="sub" style="display:flex;gap:6px;align-items:center;font-weight:800"><input type="checkbox" id="grp" style="min-height:0;width:18px;height:18px"> Group by user</label></div>
+  <div id="list"></div>
+</main>
+
+<div class="overlay" id="modal" hidden><section class="panel board"><div class="bhead"><div><h2 id="mh"></h2><span class="pill" id="mc"></span></div><button class="x" id="mx" aria-label="Close">×</button></div><div id="mb" style="margin-top:14px"></div></section></div>
+<div id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s),pad=n=>String(n).padStart(2,'0');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const ROLE={admin:'Head',host:'Supervisor',staff:'Staff'},PR={Now:0,Next:1,Later:2},ST={active:'Active',done:'Completed',trash:'Trash'};
+const todayStr=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila'}).format(new Date());
+let U=[],T=[],UM={},sel=new Set(),vy,vm,view='cal';
+const f={status:'active',pri:'all',sort:'date',dir:1,q:''};
+const toast=m=>{const d=document.createElement('div');d.textContent=m;$('#toast').append(d);setTimeout(()=>d.remove(),3000)};
+const uname=id=>UM[id]?.name||'Unknown';
+const fmt=d=>{const[y,m,dd]=d.split('-').map(Number);return new Date(y,m-1,dd).toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric',year:'numeric'})};
+
+function filtered(){
+  const q=f.q.trim().toLowerCase();
+  return T.filter(t=>sel.has(t.userId)&&(f.status==='all'||t.status===f.status)&&(f.pri==='all'||t.priority===f.pri)
+    &&(!q||(t.title+' '+(t.description||'')).toLowerCase().includes(q)));
+}
+function sorted(L){
+  const d=f.dir,c={date:(a,b)=>a.date.localeCompare(b.date),user:(a,b)=>uname(a.userId).localeCompare(uname(b.userId)),
+    priority:(a,b)=>PR[a.priority]-PR[b.priority],status:(a,b)=>a.status.localeCompare(b.status),title:(a,b)=>a.title.localeCompare(b.title)}[f.sort];
+  return [...L].sort((a,b)=>d*c(a,b)||a.date.localeCompare(b.date)||a.title.localeCompare(b.title));
+}
+function users(){
+  const base=T.filter(t=>(f.status==='all'||t.status===f.status));
+  $('#ulist').innerHTML=`<button class="up${sel.size===U.length?' on':''}" data-u="*">Everyone <b>${base.length}</b></button>`+
+    U.map(u=>`<button class="up${sel.has(u.id)?' on':''}" data-u="${esc(u.id)}" title="${esc(ROLE[u.role])}${u.active?'':' · disabled'}">${esc(u.name)}${u.active?'':' ⛔'} <b>${base.filter(t=>t.userId===u.id).length}</b></button>`).join('');
+}
+function card(t,showUser=true){
+  return `<div class="card pri-${t.priority}"><div class="top2"><h4>${esc(t.title)}</h4><span class="sw3" style="background:${esc(t.color)};margin:0;flex:none" title="Note colour"></span></div>
+  ${t.description?`<p>${esc(t.description)}</p>`:''}
+  <div class="tags">${showUser?`<span>👤 ${esc(uname(t.userId))}</span>`:''}<span>📅 ${esc(fmt(t.date))}</span><span>${{Now:'🔴',Next:'🟡',Later:'🟢'}[t.priority]} ${t.priority}</span><span>${ST[t.status]}${t.status==='done'&&t.completed?' · '+esc(t.completed):''}</span>${t.pinned?'<span>📌</span>':''}${t.favorite?'<span>⭐</span>':''}</div></div>`;
+}
+function renderCal(){
+  const L=filtered(),by={};L.forEach(t=>(by[t.date]=by[t.date]||[]).push(t));
+  $('#mt').textContent=`${MONTHS[vm]} ${vy}`;
+  const first=new Date(vy,vm,1).getDay(),dim=new Date(vy,vm+1,0).getDate(),td=todayStr();let h='';
+  for(let i=0;i<first;i++)h+='<div></div>';
+  for(let d=1;d<=dim;d++){
+    const k=`${vy}-${pad(vm+1)}-${pad(d)}`,l=by[k]||[];
+    h+=`<button class="cell${k===td?' tdy':''}" data-d="${k}"><span class="n">${d}${l.length?`<em>${l.length}</em>`:''}</span>${sorted(l).slice(0,2).map(t=>`<span class="chip" style="background:${esc(t.color)}"><b>${esc(uname(t.userId).split(' ')[0])}</b> ${esc(t.title)}</span>`).join('')}${l.length>2?`<span class="h">+${l.length-2} more</span>`:''}</button>`;
+  }
+  $('#grid').innerHTML=h;
+}
+function renderList(){
+  const L=sorted(filtered());$('#lh').textContent=`${L.length} note${L.length===1?'':'s'}`;
+  if(!L.length){$('#list').innerHTML='<div class="empty">No notes match these filters.</div>';return}
+  if($('#grp').checked){
+    const g={};L.forEach(t=>(g[t.userId]=g[t.userId]||[]).push(t));
+    $('#list').innerHTML=Object.keys(g).sort((a,b)=>uname(a).localeCompare(uname(b))*(f.sort==='user'?f.dir:1)).map(id=>`<div class="gh"><span>👤 ${esc(uname(id))}</span><span class="sub">${g[id].length}</span></div>`+g[id].map(t=>card(t,false)).join('')).join('');
+  }else $('#list').innerHTML=L.map(t=>card(t)).join('');
+}
+function render(){
+  const L=filtered();
+  $('#cUsers').textContent=sel.size;$('#cNotes').textContent=L.length;$('#cAll').textContent=T.length;
+  users();
+  $('#calP').hidden=view!=='cal';$('#listP').hidden=view!=='list';
+  view==='cal'?renderCal():renderList();
+}
+function openDay(k){
+  const L=sorted(filtered().filter(t=>t.date===k));
+  $('#mh').textContent=fmt(k);$('#mc').textContent=L.length+' note'+(L.length===1?'':'s');
+  $('#mb').innerHTML=L.length?L.map(t=>card(t)).join(''):'<div class="empty">No notes on this day.</div>';
+  $('#modal').hidden=false;document.body.classList.add('lock');
+}
+const closeDay=()=>{$('#modal').hidden=true;document.body.classList.remove('lock')};
+
+$('#grid').onclick=e=>{const c=e.target.closest('.cell');if(c)openDay(c.dataset.d)};
+$('#mx').onclick=closeDay;$('#modal').onclick=e=>{if(e.target.id==='modal')closeDay()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDay()});
+$('#ulist').onclick=e=>{const b=e.target.closest('.up');if(!b)return;const id=b.dataset.u;
+  if(id==='*')sel=sel.size===U.length?new Set():new Set(U.map(u=>u.id));else sel.has(id)?sel.delete(id):sel.add(id);render()};
+$('#prev').onclick=()=>{vm--;if(vm<0){vm=11;vy--}render()};
+$('#next').onclick=()=>{vm++;if(vm>11){vm=0;vy++}render()};
+$('#goToday').onclick=()=>{const t=todayStr().split('-').map(Number);vy=t[0];vm=t[1]-1;render()};
+$('#vCal').onclick=()=>{view='cal';$('#vCal').classList.add('on');$('#vList').classList.remove('on');render()};
+$('#vList').onclick=()=>{view='list';$('#vList').classList.add('on');$('#vCal').classList.remove('on');render()};
+[['#fStatus','status'],['#fPri','pri'],['#fSort','sort']].forEach(([s,k])=>$(s).onchange=e=>{f[k]=e.target.value;render()});
+$('#fDir').onchange=e=>{f.dir=+e.target.value;render()};
+$('#fQ').oninput=e=>{f.q=e.target.value;render()};
+$('#grp').onchange=render;
+
+(async()=>{
+  const me=await currentUser();if(!me)return location.replace('login.html');
+  if(!me.user.overview)return location.replace('index.html');   // default admin only (server enforces this too)
+  try{const d=await api('/api/personal-all');U=d.users;T=d.tasks;U.sort((a,b)=>a.name.localeCompare(b.name));UM=Object.fromEntries(U.map(u=>[u.id,u]));sel=new Set(U.map(u=>u.id))}
+  catch(e){if(e.status===401)return location.replace('login.html');toast('⚠️ '+e.message);return}
+  const t=todayStr().split('-').map(Number);vy=t[0];vm=t[1]-1;render();
+})();
+</script></body></html>

@@ -105,6 +105,18 @@ check('a NEW Head cannot assign a task to the default admin', (await H2('/shared
 check('a NEW Head cannot assign a task to themselves', (await H2('/shared', 'POST', task([id('head2')]))).status === 403);
 check('a NEW Head can assign to staff', (await H2('/shared', 'POST', task([staff2]))).status === 201);
 
+console.log('All-users personal overview (default admin only)');
+check('the default admin is flagged for the overview', (await N('/me')).d.user.overview === true);
+check('a NEW Head is not flagged', (await H2('/me')).d.user.overview === false);
+check('a NEW Head is refused the overview (403)', (await H2('/personal-all')).status === 403);
+check('logged-out visitors are refused (401)', (await browser()('/personal-all')).status === 401);
+const hb = await H2('/me');
+check('a user can save a personal note', (await H2('/board', 'PUT', { theme: 'white', tasks: [{ id: 'ov1', title: 'head2 private note', date: '2026-03-05' }], rev: hb.d.board?.rev ?? 0 })).status === 200);
+const ov = await N('/personal-all');
+check('the default admin sees every user and their notes', ov.status === 200 && ov.d.users.length >= 2 && ov.d.tasks.some(t => t.title === 'head2 private note' && t.userId === id('head2')));
+check('the overview never exposes password hashes', !JSON.stringify(ov.d).includes('hash') && !JSON.stringify(ov.d).includes('salt'));
+check('the overview is read-only (no write route)', (await N('/personal-all', 'PUT', {})).status === 404);
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');
 process.exit(failed ? 1 : 0);
