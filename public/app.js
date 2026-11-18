@@ -297,10 +297,15 @@ function shareTask(t){
   const txt=shareText(t),mobile=isMobile(),android=/Android/i.test(navigator.userAgent);
   const copied=copyText(txt);                       // starts inside the tap so the browser allows it
   if(!mobile){window.open('https://www.messenger.com/','_blank','noopener')}   // PC: Messenger website
-  else{                                             // phone: open the Messenger app, fall back to m.me if not installed
-    const t0=Date.now();let left=false;const onHide=()=>{if(document.hidden)left=true};document.addEventListener('visibilitychange',onHide);
-    location.href=android?'intent://#Intent;scheme=fb-messenger;package=com.facebook.orca;S.browser_fallback_url=https%3A%2F%2Fm.me%2F;end':'fb-messenger://';
-    setTimeout(()=>{document.removeEventListener('visibilitychange',onHide);if(!left&&!document.hidden&&Date.now()-t0<2500)window.open('https://m.me/','_blank')},1500);
+  else{                                             // phone: launch the Messenger app, fall back to m.me if it isn't installed
+    let left=false;const onHide=()=>{if(document.hidden)left=true};
+    document.addEventListener('visibilitychange',onHide);window.addEventListener('pagehide',onHide);
+    // Android: explicit "launch this package" intent (no host/path needed, so it can't fail to resolve); iOS: Messenger's URL scheme
+    location.href=android
+      ?'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.facebook.orca;S.browser_fallback_url=https%3A%2F%2Fm.me%2F;end'
+      :'fb-messenger://';
+    setTimeout(()=>{document.removeEventListener('visibilitychange',onHide);window.removeEventListener('pagehide',onHide);
+      if(!left&&!document.hidden)location.href='https://m.me/'},2000);   // still here after 2s = app didn't open
   }
   copied.then(ok=>toast(ok?'📋 Copied! Open a chat in Messenger and paste':'⚠️ Could not copy — long-press the task text to copy it'));
 }
