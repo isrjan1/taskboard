@@ -3,6 +3,7 @@ const MONTHS=['January','February','March','April','May','June','July','August',
 const COLORS={Now:['#cbfec9','#ebd3ff','#dfc3ff'],Next:['#fff3a1','#c3e2ff'],Later:['#ffd1ea','#cbfec9']};
 const ROLE={admin:'Head',host:'Supervisor',staff:'Staff'};
 const PRI={Now:0,Next:1,Later:2};
+const NEXTP={Now:'Next',Next:'Later',Later:'Now'};   // used by the tap-to-move button
 const pad=n=>String(n).padStart(2,'0');
 const key=(y,m,d)=>`${y}-${pad(m+1)}-${pad(d)}`;
 const todayStr=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila'}).format(new Date());
@@ -118,8 +119,8 @@ $('#agList').onclick=e=>{const b=e.target.closest('.ag');if(!b)return;const [y,m
 function renderAll(){updateModeLabels();renderCal();renderAgenda();if(openDate&&!editId)renderBoard()}
 
 /* ---------- board modal ---------- */
-function openBoard(d){openDate=d;view='board';editId=null;$('#modal').hidden=false;renderBoard()}
-function closeBoard(){$('#modal').hidden=true;openDate=null;editId=null;renderAll()}
+function openBoard(d){openDate=d;view='board';editId=null;$('#modal').hidden=false;document.body.classList.add('lock');renderBoard()}
+function closeBoard(){$('#modal').hidden=true;document.body.classList.remove('lock');openDate=null;editId=null;renderAll()}
 $('#bClose').onclick=closeBoard;
 $('#modal').onclick=e=>{if(e.target.id==='modal')closeBoard()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&openDate)closeBoard()});
@@ -195,7 +196,7 @@ function pNote(t){
     <div class="nact"><button data-a="cancel">Cancel</button><span class="sp"></span><button data-a="save" data-id="${t.id}">💾 Save</button></div>`
   :`<h4>${esc(t.title)}</h4>${t.description?`<p>${esc(t.description)}</p>`:''}
     <div class="nact"><button data-a="pin" data-id="${t.id}">${t.pinned?'📌':'📍'}</button><button data-a="fav" data-id="${t.id}">${t.favorite?'⭐':'☆'}</button>
-    <button data-a="edit" data-id="${t.id}">✏️</button><span class="sp"></span>
+    <button data-a="edit" data-id="${t.id}">✏️</button><button data-a="mv" data-id="${t.id}" title="Move to ${NEXTP[t.priority]}">➡ ${NEXTP[t.priority]}</button><span class="sp"></span>
     <button data-a="done" data-id="${t.id}" title="Complete">✔</button><button data-a="trash" data-id="${t.id}" title="Trash">🗑</button></div>`}</div>`;
 }
 function addTask(){
@@ -220,8 +221,8 @@ function sNote(t){
     <h4>${esc(t.title)}</h4>${t.description?`<p>${esc(t.description)}</p>`:''}
     <div class="meta"><span>From <b>${esc(t.createdByName)}</b></span>${n>1?`<span>· ${dn}/${n} done</span>`:''}</div>
     <div class="meta">${t.assignees.map(a=>`<span class="who${a.done?' dn':''}">${a.done?'✔':'○'} ${esc(a.name)}</span>`).join('')}</div>
-    <div class="nact">${t.mine&&!t.myDone?`<button class="go" data-a="sdone" data-id="${t.id}">✔ Mark done</button>`:''}
-    ${t.canManage?`<button data-a="spin" data-id="${t.id}">${t.pinned?'📌':'📍'}</button><button data-a="sedit" data-id="${t.id}">✏️</button><span class="sp"></span>
+    <div class="nact">${t.mine&&!t.myDone?`<button class="go" data-a="sdone" data-id="${t.id}">✔ Mark done</button>`:''}<button class="share" data-a="sshare" data-id="${t.id}" title="Copy &amp; share on Messenger" aria-label="Share on Messenger">💬 Share</button>
+    ${t.canManage?`<button data-a="spin" data-id="${t.id}">${t.pinned?'📌':'📍'}</button><button data-a="sedit" data-id="${t.id}">✏️</button><button data-a="smv" data-id="${t.id}" title="Move to ${NEXTP[t.priority]}">➡ ${NEXTP[t.priority]}</button><span class="sp"></span>
     <button data-a="sclose" data-id="${t.id}" title="Mark complete for everyone">✔ Close</button><button data-a="strash" data-id="${t.id}" title="Trash">🗑</button>`:''}</div></div>`;
 }
 const upsert=t=>{const i=SH.findIndex(x=>x.id===t.id);if(i<0)SH.push(t);else SH[i]=t};
@@ -251,7 +252,9 @@ async function sClick(b,a){
     if(!title)return toast('Title cannot be empty');if(!ids.length)return toast('Pick at least one person.');
     return sUpdate(id,{title,description:n.querySelector('.eD').value.trim(),priority:n.querySelector('.eP').value,date:n.querySelector('.eDt').value||t.date,assignees:ids},'Task updated');
   }
+  if(a==='sshare')return shareTask(t);
   if(a==='spin')return sUpdate(id,{pinned:!t.pinned});
+  if(a==='smv')return sUpdate(id,{priority:NEXTP[t.priority]},'Moved to '+NEXTP[t.priority]);
   if(a==='sdone')return sUpdate(id,{done:true},'Nice — marked done ✔');
   if(a==='sundo')return sUpdate(id,{done:false},'Moved back to the board');
   if(a==='sclose')return sUpdate(id,{done:true,all:true},'Closed for everyone ✔');
@@ -270,6 +273,38 @@ async function refreshShared(){
   }catch(e){if(e.status===401)location.replace('login.html')}
 }
 
+/* ----- share a shared task to Facebook Messenger ----- */
+function shareText(t){
+  const [y,m,d]=t.date.split('-').map(Number);
+  const due=new Date(y,m-1,d).toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const n=t.assignees.length,dn=t.assignees.filter(a=>a.done).length,icon={Now:'🔴',Next:'🟡',Later:'🟢'}[t.priority]||'⚪';
+  const L=['📋 TASK ASSIGNMENT','━━━━━━━━━━━━━━',t.title];
+  if(t.description)L.push('📝 '+t.description);
+  L.push('','📅 Due: '+due,icon+' Priority: '+t.priority,'👤 Assigned by: '+t.createdByName,
+    '👥 Assigned to:',...t.assignees.map(a=>(a.done?'  ✅ ':'  ⬜ ')+a.name),
+    '📊 Progress: '+dn+'/'+n+' done','','— Smart Calendar Task Board');
+  return L.join('\n');
+}
+function copyText(txt){   // synchronous fallback works on http/older browsers; async API is tried first
+  let ok=false;
+  try{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0;font-size:16px';
+    document.body.append(ta);ta.select();ta.setSelectionRange(0,txt.length);ok=document.execCommand('copy');ta.remove()}catch(e){}
+  if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(txt).then(()=>true,()=>ok);
+  return Promise.resolve(ok);
+}
+const isMobile=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+function shareTask(t){
+  const txt=shareText(t),mobile=isMobile(),android=/Android/i.test(navigator.userAgent);
+  const copied=copyText(txt);                       // starts inside the tap so the browser allows it
+  if(!mobile){window.open('https://www.messenger.com/','_blank','noopener')}   // PC: Messenger website
+  else{                                             // phone: open the Messenger app, fall back to m.me if not installed
+    const t0=Date.now();let left=false;const onHide=()=>{if(document.hidden)left=true};document.addEventListener('visibilitychange',onHide);
+    location.href=android?'intent://#Intent;scheme=fb-messenger;package=com.facebook.orca;S.browser_fallback_url=https%3A%2F%2Fm.me%2F;end':'fb-messenger://';
+    setTimeout(()=>{document.removeEventListener('visibilitychange',onHide);if(!left&&!document.hidden&&Date.now()-t0<2500)window.open('https://m.me/','_blank')},1500);
+  }
+  copied.then(ok=>toast(ok?'📋 Copied! Open a chat in Messenger and paste':'⚠️ Could not copy — long-press the task text to copy it'));
+}
+
 /* ----- clicks inside the board ----- */
 $('#bBody').onclick=e=>{
   const b=e.target.closest('[data-a]');if(!b)return;
@@ -282,6 +317,7 @@ $('#bBody').onclick=e=>{
   else if(a==='save'){const n=b.closest('.note').querySelector('.eT').value.trim();if(!n)return toast('Title cannot be empty');
     t.title=n;t.description=b.closest('.note').querySelector('.eD').value.trim();editId=null}
   else if(a==='pin')t.pinned=!t.pinned;
+  else if(a==='mv'){t.priority=NEXTP[t.priority];toast('Moved to '+t.priority)}
   else if(a==='fav')t.favorite=!t.favorite;
   else if(a==='done'){t.status='done';t.completed=todayStr();toast('Checked off ✔')}
   else if(a==='trash'){t.status='trash';toast('Moved to Trash')}
@@ -338,7 +374,7 @@ $('#acctF').onsubmit=async e=>{
   const me=await currentUser();if(!me)return location.replace('login.html');
   ME=me.user;P=me.board||{tasks:[],theme:'white'};if(!Array.isArray(P.tasks))P.tasks=[];P.rev=Number.isInteger(P.rev)?P.rev:0;
   if(P.theme&&P.theme!==(localStorage.getItem('stb_theme')||'white')){localStorage.setItem('stb_theme',P.theme);applyTheme(P.theme)}
-  $('#who').innerHTML=`<b style="font-size:.75rem">${esc(ME.name||ME.username)}</b>${ROLE[ME.role]}`;
+  $('#who').innerHTML=`<b style="font-size:.85rem">${esc(ME.name||ME.username)}</b><span class="role">${ROLE[ME.role]}</span>`;
   $('#usersLink').hidden=ME.role!=='admin';
   try{
     const [s,p]=await Promise.all([api('/api/shared'),isMgr()?api('/api/people'):Promise.resolve({people:[]})]);

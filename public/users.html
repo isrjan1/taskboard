@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manage Users · Smart Calendar Task Board</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400..700&family=Quicksand:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -7,11 +7,13 @@
 th{font-size:.65rem;text-transform:uppercase;opacity:.6}.fm{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;align-items:center}
 .tag{font-size:.65rem;font-weight:800;border-radius:6px;padding:2px 7px;background:var(--soft);border:1px solid var(--bd)}
 .help{background:var(--soft);border:1px dashed var(--bd);border-radius:12px;padding:10px 12px;font-size:.78rem;font-weight:600;margin-bottom:12px;line-height:1.5}
-#fhWrap{grid-column:1/-1}</style></head>
+#fhWrap{grid-column:1/-1}
+.top .row .btn{flex:1 1 auto}
+@media(max-width:700px){.top .row{display:grid;grid-template-columns:1fr 1fr}.top .row .btn:first-child{grid-column:1/-1}.fm{grid-template-columns:1fr}table{font-size:.75rem}td:last-child .mini{margin:2px 0}}</style></head>
 <body class="th-white">
 <script src="auth.js"></script>
 <header class="panel top"><div><h1>👥 Manage Users</h1><p class="sub">Head only · accounts, supervisors, and who reports to whom</p></div>
-<div class="row"><a class="btn" href="index.html" style="text-decoration:none;color:inherit">← Back to calendar</a><button class="btn" id="bx">⬇ Export Backup</button><button class="btn" id="bi">⬆ Import Backup</button><input type="file" id="bf" accept=".json" hidden><button class="btn" onclick="logout()">Log out</button></div></header>
+<div class="row"><a class="btn" href="index.html">← Back to calendar</a><button class="btn" id="bx">⬇ Export Backup</button><button class="btn" id="bi">⬆ Import Backup</button><input type="file" id="bf" accept=".json" hidden><button class="btn" onclick="logout()">Log out</button></div></header>
 <main class="panel">
   <div class="help"><b>Head</b> = admin (assigns to anyone, manages users) · <b>Supervisor</b> = assigns tasks on the Shared calendar to <i>their</i> staff · <b>Staff</b> = receives tasks. A staff member can report to several supervisors — tick them below.</div>
   <h3 id="ft">Add user</h3>
