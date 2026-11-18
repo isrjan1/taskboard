@@ -8,7 +8,7 @@ const H = (m, s = 400) => new HttpError(s, m);
 
 const store = () => getStore({ name: 'taskboard', consistency: 'strong' });
 const J = (d, s = 200, h = {}) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...h } });
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Date(Date.now() + 8 * 36e5).toISOString().slice(0, 10);   // Manila date (UTC+8), not the server's UTC date
 const hp = (pw, salt) => scryptSync(pw, salt, 64).toString('hex');
 const same = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && timingSafeEqual(x, y); };
 const uniq = a => [...new Set(Array.isArray(a) ? a.map(String) : [])];
@@ -37,7 +37,7 @@ async function mutate(st, key, init, fn) {
   throw H('Busy, please try again.', 409);
 }
 
-const normUser = u => ({ ...u, role: ROLES.includes(u.role) ? u.role : 'staff', hostIds: Array.isArray(u.hostIds) ? u.hostIds : [] });
+const normUser = u => ({ ...u, role: ROLES.includes(u.role) ? u.role : 'staff', hostIds: Array.isArray(u.hostIds) ? u.hostIds : [], pv: Number.isInteger(u.pv) ? u.pv : 0 });
 
 async function usersInit() {
   const pw = process.env.ADMIN_INITIAL_PASSWORD;
@@ -136,7 +136,7 @@ export default async (req) => {
       }
       if (f) await st.delete(fk);
       const token = randomBytes(24).toString('hex');
-      await st.setJSON('sess:' + token, { id: u.id, exp: now + SESSION_MS });
+      await st.setJSON('sess:' + token, { id: u.id, pv: u.pv, exp: now + SESSION_MS });
       return J({ user: pub(u, us) }, 200, { 'Set-Cookie': `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MS / 1000}` });
     }
 
@@ -155,7 +155,7 @@ export default async (req) => {
     if (!sess || sess.exp < Date.now()) throw H('Not logged in', 401);
     const us = await getUsers(st);
     const me = us.find(x => x.id === sess.id && x.active);
-    if (!me) throw H('Not logged in', 401);
+    if (!me || (sess.pv || 0) !== me.pv) throw H('Not logged in', 401);   // disabled user, or password changed/reset since this login
 
     if (path === '/me' && m === 'GET') return J({ user: pub(me, us), board: await st.get('board:' + me.id, { type: 'json' }) });
 
@@ -163,15 +163,21 @@ export default async (req) => {
       const cur = String(body.currentPassword || ''), next = String(body.newPassword || '');
       if (!same(me.hash, hp(cur, me.salt))) throw H('Current password is incorrect.', 401);
       if (next.length < 8) throw H('New password must be at least 8 characters.');
-      await mutUsers(st, list => { const u = list.find(x => x.id === me.id); u.salt = randomBytes(8).toString('hex'); u.hash = hp(next, u.salt); delete u.mustChange; });
+      let pv = 0;
+      await mutUsers(st, list => { const u = list.find(x => x.id === me.id); u.salt = randomBytes(8).toString('hex'); u.hash = hp(next, u.salt); u.pv = (u.pv || 0) + 1; pv = u.pv; delete u.mustChange; });
+      await st.setJSON('sess:' + token, { ...sess, pv });   // this device stays signed in; every other session is now invalid
       return J({ ok: 1 });
     }
 
     // ----- personal board -----
     if (path === '/board' && m === 'PUT') {
       if (!Array.isArray(body.tasks) || JSON.stringify(body).length > 1e6) throw H('Invalid board');
-      await st.setJSON('board:' + me.id, cleanBoard(body));
-      return J({ ok: 1 });
+      const key = 'board:' + me.id, cur = await st.getWithMetadata(key, { type: 'json' }), curRev = cur?.data?.rev || 0;
+      const stale = () => H('Changed on another device. Latest version loaded; please redo your last change.', 409);
+      if (Number.isInteger(body.rev) && body.rev !== curRev) throw stale();
+      const w = await st.setJSON(key, { ...cleanBoard(body), rev: curRev + 1 }, cur ? { onlyIfMatch: cur.etag } : { onlyIfNew: true });
+      if (w && w.modified === false) throw stale();
+      return J({ ok: 1, rev: curRev + 1 });
     }
 
     // ----- people I can assign tasks to -----
@@ -255,6 +261,7 @@ export default async (req) => {
     if (um) {
       const id = um[1];
       if (m === 'PUT') {
+        let selfPv = null;
         await mutUsers(st, list => {
           const u = list.find(x => x.id === id);
           if (!u) throw H('User not found', 404);
@@ -265,10 +272,11 @@ export default async (req) => {
           u.hostIds = role === 'staff' ? uniq(body.hostIds).filter(h => list.some(x => x.id === h && x.role === 'host')) : [];
           if (body.password) {
             if (String(body.password).length < 6) throw H('Password must be at least 6 characters.');
-            u.salt = randomBytes(8).toString('hex'); u.hash = hp(body.password, u.salt);
-            if (u.id === me.id) delete u.mustChange; else u.mustChange = true;
+            u.salt = randomBytes(8).toString('hex'); u.hash = hp(body.password, u.salt); u.pv = (u.pv || 0) + 1;
+            if (u.id === me.id) { delete u.mustChange; selfPv = u.pv; } else u.mustChange = true;
           }
         });
+        if (selfPv !== null) await st.setJSON('sess:' + token, { ...sess, pv: selfPv });   // admin changing their own password keeps this session
         return J({ ok: 1 });
       }
       if (m === 'DELETE') {

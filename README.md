@@ -37,6 +37,13 @@ echo ADMIN_INITIAL_PASSWORD=choose-one-123 > .env
 netlify dev
 ```
 
+## Tests
+```
+npm test
+```
+Runs 22 checks against the real API with an in-memory stand-in for Netlify Blobs (no network, no extra dependencies).
+See `IMPROVEMENTS.md` for the review, the logout fix, and what changed in v2.1.
+
 ## Upgrading from the earlier calendar-only version
 Same storage name, so existing accounts and personal boards carry over. Old `user` accounts become **Staff**; everyone is logged out once (new cookie sessions). Existing admin passwords are unchanged (`ADMIN_INITIAL_PASSWORD` is only used when no users exist yet).
 
@@ -45,4 +52,4 @@ Same storage name, so existing accounts and personal boards carry over. Old `use
 public/                static site (index, login, users, app.js, style.css)
 netlify/functions/api.mjs   API at /api/*  (Netlify Blobs storage)
 ```
-Data keys in the `taskboard` blob store: `users`, `shared`, `board:<userId>`, `sess:<token>`.
+Data keys in the `taskboard` blob store: `users`, `shared`, `board:<userId>` (includes a `rev` revision number), `sess:<token>` (includes the user's password version `pv`).

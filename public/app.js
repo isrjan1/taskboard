@@ -178,7 +178,16 @@ function listBtns(t){
 function noteHTML(t){return mode==='personal'?pNote(t):sNote(t)}
 
 /* ----- personal notes (saved as one board per user) ----- */
-function save(){clearTimeout(saveT);saveT=setTimeout(()=>api('/api/board','PUT',P).catch(e=>{if(e.status===401)location.replace('login.html');else toast('⚠️ Not saved: '+e.message)}),350)}
+let saveQ=Promise.resolve();   // saves run one at a time so each carries the newest revision
+function save(){clearTimeout(saveT);saveT=setTimeout(()=>{saveQ=saveQ.then(()=>api('/api/board','PUT',P).then(d=>{if(Number.isInteger(d.rev))P.rev=d.rev}).catch(async e=>{
+  if(e.status===401)return location.replace('login.html');
+  if(e.status===409)return reloadBoard(e.message);
+  toast('⚠️ Not saved: '+e.message)}))},350)}
+async function reloadBoard(msg){   // another device saved first: show its version instead of overwriting it
+  const me=await currentUser();if(!me)return location.replace('login.html');
+  P=me.board||{tasks:[],theme:'white'};if(!Array.isArray(P.tasks))P.tasks=[];P.rev=Number.isInteger(P.rev)?P.rev:0;
+  editId=null;renderAll();toast('⚠️ '+msg);
+}
 function pNote(t){
   const edit=editId===t.id;
   return `<div class="note" draggable="${!edit}" data-id="${t.id}" style="background:${col(t.color)}"><div class="tape"></div>
@@ -251,7 +260,9 @@ async function sClick(b,a){
   if(a==='srestore')return sUpdate(id,{status:'active'},'Restored to board');
   if(a==='serase'){try{await call('/api/shared/'+id,'DELETE');SH=SH.filter(x=>x.id!==id);toast('Erased');renderBoard();updateModeLabels()}catch(e){}}
 }
+let lastShared=0;
 async function refreshShared(){
+  if(Date.now()-lastShared<15000)return;lastShared=Date.now();
   try{
     const r=await api('/api/shared');SH=r.tasks;
     if(openDate&&mode==='shared'&&(editId||/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&$('#modal').contains(document.activeElement))){renderCal();renderAgenda();updateModeLabels();return}
@@ -325,7 +336,7 @@ $('#acctF').onsubmit=async e=>{
 /* ---------- boot ---------- */
 (async()=>{
   const me=await currentUser();if(!me)return location.replace('login.html');
-  ME=me.user;P=me.board||{tasks:[],theme:'white'};if(!Array.isArray(P.tasks))P.tasks=[];
+  ME=me.user;P=me.board||{tasks:[],theme:'white'};if(!Array.isArray(P.tasks))P.tasks=[];P.rev=Number.isInteger(P.rev)?P.rev:0;
   if(P.theme&&P.theme!==(localStorage.getItem('stb_theme')||'white')){localStorage.setItem('stb_theme',P.theme);applyTheme(P.theme)}
   $('#who').innerHTML=`<b style="font-size:.75rem">${esc(ME.name||ME.username)}</b>${ROLE[ME.role]}`;
   $('#usersLink').hidden=ME.role!=='admin';
@@ -338,7 +349,7 @@ $('#acctF').onsubmit=async e=>{
   if(!localStorage.getItem('stb_mode')&&!isMgr()&&SH.some(t=>sState(t)==='active'))mode='shared';
   setMode(mode);
   if(ME.mustChange)openAcct(true);
-  // keep Shared fresh: every 30s while visible, and when returning to the tab
-  setInterval(()=>{if(!document.hidden)refreshShared()},30000);
+  // keep Shared fresh: every 60s while visible, and when returning to the tab
+  setInterval(()=>{if(!document.hidden)refreshShared()},60000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshShared()});
 })();
