@@ -113,7 +113,8 @@ export default async (req) => {
     let body = {};
     if (m === 'POST' || m === 'PUT') {
       if (!(req.headers.get('content-type') || '').includes('application/json')) throw H('JSON required', 415);
-      try { body = (await req.json()) || {}; } catch { throw H('Bad JSON'); }
+      const raw = await req.text();
+      try { body = raw.trim() ? (JSON.parse(raw) || {}) : {}; } catch { throw H('Bad JSON'); }
     }
 
     // ----- login (public) -----
@@ -139,19 +140,23 @@ export default async (req) => {
       return J({ user: pub(u, us) }, 200, { 'Set-Cookie': `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MS / 1000}` });
     }
 
-    // ----- everything below needs a session -----
+    // ----- session cookie -----
     const ck = (req.headers.get('cookie') || '').split(/;\s*/).find(c => c.startsWith(COOKIE + '='));
     const token = ck ? ck.slice(COOKIE.length + 1) : '';
+
+    // ----- logout (public on purpose: it must work even if the session already expired) -----
+    if (path === '/logout' && m === 'POST') {
+      if (/^[a-f0-9]{48}$/.test(token)) await st.delete('sess:' + token);
+      return J({ ok: 1 }, 200, { 'Set-Cookie': `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0` });
+    }
+
+    // ----- everything below needs a session -----
     const sess = /^[a-f0-9]{48}$/.test(token) ? await st.get('sess:' + token, { type: 'json' }) : null;
     if (!sess || sess.exp < Date.now()) throw H('Not logged in', 401);
     const us = await getUsers(st);
     const me = us.find(x => x.id === sess.id && x.active);
     if (!me) throw H('Not logged in', 401);
 
-    if (path === '/logout' && m === 'POST') {
-      await st.delete('sess:' + token);
-      return J({ ok: 1 }, 200, { 'Set-Cookie': `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0` });
-    }
     if (path === '/me' && m === 'GET') return J({ user: pub(me, us), board: await st.get('board:' + me.id, { type: 'json' }) });
 
     if (path === '/change-password' && m === 'POST') {

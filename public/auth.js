@@ -13,4 +13,15 @@ async function api(path,method='GET',body){
 }
 const login=(u,p)=>api('/api/login','POST',{username:u,password:p}).then(d=>d.user);
 async function currentUser(){try{return await api('/api/me')}catch(e){return null}} // {user,board} or null
-async function logout(){try{await api('/api/logout','POST')}catch(e){}location.href='login.html'}
+async function logout(){
+  // Only leave the page once the server confirms the session is gone; otherwise the login page would see the
+  // still-valid cookie and sign you straight back in.
+  try{await api('/api/logout','POST',{})}
+  catch(e){alert('Could not log out ('+(e.message||'network error')+'). Please check your connection and try again.');return}
+  location.replace('login.html');
+}
+// Back/forward cache: never show a signed-in page from memory after logging out.
+addEventListener('pageshow',async e=>{
+  if(!e.persisted||/login\.html$/.test(location.pathname))return;
+  if(!(await currentUser()))location.replace('login.html');
+});
