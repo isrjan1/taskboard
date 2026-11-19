@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Manage Users · Smart Calendar Task Board</title>
+<title>Manage Users · Co-Work</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400..700&family=Quicksand:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="chat.css">
 <style>table{width:100%;border-collapse:collapse;font-size:.8rem}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd)}
 th{font-size:.65rem;text-transform:uppercase;opacity:.6}.fm{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;align-items:center}
 .tag{font-size:.65rem;font-weight:800;border-radius:6px;padding:2px 7px;background:var(--soft);border:1px solid var(--bd)}
@@ -82,4 +83,5 @@ $('#bf').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;c
 (async()=>{const m=await currentUser();
   if(!m)return location.replace('login.html');
   ME=m.user;if(ME.role!=='admin')return location.replace('index.html');load()})();
-</script></body></html>
+</script><script src="chat.js" defer></script>
+</body></html>

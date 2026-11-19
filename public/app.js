@@ -68,7 +68,7 @@ function setMode(m){
 }
 document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>{if(!openDate)setMode(b.dataset.mode)});
 document.addEventListener('keydown',e=>{
-  if(e.ctrlKey||e.metaKey||e.altKey||openDate||!$('#acct').hidden||/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;
+  if(e.ctrlKey||e.metaKey||e.altKey||openDate||!$('#acct').hidden||!$('#prof').hidden||/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;
   const k=e.key.toLowerCase();
   if(k==='p')setMode('personal');else if(k==='s')setMode('shared');else if(k==='t')$('#goToday').click();
 });
@@ -140,7 +140,7 @@ function closeBoard(){$('#modal').hidden=true;document.body.classList.remove('lo
 $('#bClose').onclick=closeBoard;
 $('#modal').onclick=e=>{if(e.target.id==='modal')closeBoard()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&openDate)closeBoard()});
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{view=b.dataset.v;editId=null;renderBoard()});
+document.querySelectorAll('#modal .tabs button').forEach(b=>b.onclick=()=>{view=b.dataset.v;editId=null;renderBoard()});
 
 function peopleBox(sel,extra){
   const list=PEOPLE.slice();(extra||[]).forEach(a=>{if(!list.some(p=>p.id===a.id))list.push({id:a.id,name:a.name,role:''})});
@@ -158,7 +158,7 @@ function renderBoard(){
   const L=items().filter(t=>t.date===openDate);
   $('#cDone').textContent=L.filter(t=>t.state==='done').length;$('#cTrash').textContent=L.filter(t=>t.state==='trash').length;
   $('#tabTrash').hidden=!trashOK;if(!trashOK&&view==='trash')view='board';
-  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
+  document.querySelectorAll('#modal .tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
   const B=$('#bBody');
   if(view==='board'){
     const act=L.filter(t=>t.state==='active');
@@ -298,7 +298,7 @@ function shareText(t){
   if(t.description)L.push('📝 '+t.description);
   L.push('','📅 Due: '+due,icon+' Priority: '+t.priority,'👤 Assigned by: '+t.createdByName,
     '👥 Assigned to:',...t.assignees.map(a=>(a.done?'  ✅ ':'  ⬜ ')+a.name),
-    '📊 Progress: '+dn+'/'+n+' done','','— Smart Calendar Task Board');
+    '📊 Progress: '+dn+'/'+n+' done','','— Co-Work');
   return L.join('\n');
 }
 function copyText(txt){   // synchronous fallback works on http/older browsers; async API is tried first
@@ -390,12 +390,64 @@ $('#acctF').onsubmit=async e=>{
   catch(x){toast('⚠️ '+x.message)}
 };
 
+/* ---------- profile picture (one change per 15 days; enforced by the server too) ---------- */
+const initials=n=>String(n||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'?';
+function avatarEl(cls){
+  const d=document.createElement('span');d.className='av '+(cls||'');
+  const fall=()=>{d.textContent=initials(ME.name||ME.username)};
+  if(ME.avatarAt){const i=new Image();i.alt='';i.src='/api/avatar?v='+ME.avatarAt;i.onerror=fall;d.append(i)}else fall();
+  return d;
+}
+function renderWho(){
+  $('#who').innerHTML='';
+  $('#who').append(avatarEl('sm'));
+  $('#who').insertAdjacentHTML('beforeend',`<b style="font-size:.85rem">${esc(ME.name||ME.username)}</b><span class="role">${ROLE[ME.role]}</span>`);
+}
+let newPic=null;
+const fmtDate=ms=>new Date(ms).toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric',timeZone:'Asia/Manila'});
+function renderProf(){
+  const big=$('#avBig');big.innerHTML='';
+  if(newPic){const i=new Image();i.alt='New photo preview';i.src=newPic;big.append(i)}else big.append(avatarEl('lg'));
+  $('#profName').textContent=ME.name||ME.username;
+  $('#profSub').textContent='@'+ME.username+' · '+ROLE[ME.role];
+  const left=ME.avatarAt?ME.avatarNext-Date.now():0,locked=left>0;
+  $('#avPick').disabled=locked;
+  $('#avSave').disabled=locked||!newPic;
+  $('#avNote').textContent=locked
+    ?`🔒 You changed your photo recently. You can change it again on ${fmtDate(ME.avatarNext)} (${Math.ceil(left/864e5)} day${Math.ceil(left/864e5)===1?'':'s'} left).`
+    :(ME.avatarAt?'You can change your photo now. After saving, it locks for 15 days.':'Add a photo. After saving, you can change it once every 15 days.');
+}
+function openProf(){newPic=null;$('#avFile').value='';renderProf();$('#prof').hidden=false}
+$('#profBtn').onclick=openProf;
+$('#profX').onclick=()=>{$('#prof').hidden=true};
+$('#prof').addEventListener('click',e=>{if(e.target.id==='prof')$('#prof').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#prof').hidden)$('#prof').hidden=true});
+$('#avPick').onclick=()=>$('#avFile').click();
+$('#avFile').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  if(!/^image\/(jpeg|png|webp)$/.test(f.type))return toast('Please choose a JPG, PNG or WebP image.');
+  try{
+    const bmp=await createImageBitmap(f),S=256,c=document.createElement('canvas');c.width=c.height=S;
+    const k=Math.min(bmp.width,bmp.height),sx=(bmp.width-k)/2,sy=(bmp.height-k)/2,x=c.getContext('2d');   // centre-crop to a square
+    x.fillStyle='#fff';x.fillRect(0,0,S,S);x.drawImage(bmp,sx,sy,k,k,0,0,S,S);
+    newPic=c.toDataURL('image/jpeg',.85);renderProf();
+  }catch(x){toast('⚠️ Could not read that image.')}
+};
+$('#avSave').onclick=async()=>{
+  if(!newPic)return;const b=$('#avSave');b.disabled=true;
+  try{
+    const r=await api('/api/avatar','POST',{image:newPic});
+    ME.avatarAt=r.avatarAt;ME.avatarNext=r.avatarNext;newPic=null;
+    renderWho();renderProf();toast('Profile picture updated ✔');
+  }catch(x){toast('⚠️ '+x.message);if(x.status===429)api('/api/me').then(d=>{ME=d.user;renderProf()}).catch(()=>{});renderProf()}
+};
+
 /* ---------- boot ---------- */
 (async()=>{
   const me=await currentUser();if(!me)return location.replace('login.html');
   ME=me.user;P=me.board||{tasks:[],theme:'white'};if(!Array.isArray(P.tasks))P.tasks=[];P.rev=Number.isInteger(P.rev)?P.rev:0;
   if(P.theme&&P.theme!==(localStorage.getItem('stb_theme')||'white')){localStorage.setItem('stb_theme',P.theme);applyTheme(P.theme)}
-  $('#who').innerHTML=`<b style="font-size:.85rem">${esc(ME.name||ME.username)}</b><span class="role">${ROLE[ME.role]}</span>`;
+  renderWho();
   $('#usersLink').hidden=ME.role!=='admin';
   if(ME.overview){   // default admin only: discreet star -> popover -> all-users overview page
     const sb=$('#starBtn'),sp=$('#starPop'),close=()=>{sp.hidden=true;sb.setAttribute('aria-expanded','false')};

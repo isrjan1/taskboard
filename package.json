@@ -1,6 +1,6 @@
 {
-  "name": "smart-calendar-taskboard",
-  "version": "2.2.0",
+  "name": "co-work",
+  "version": "2.3.0",
   "private": true,
   "type": "module",
   "engines": {

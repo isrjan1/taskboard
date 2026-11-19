@@ -1,4 +1,4 @@
-/* ===== Smart Calendar Task Board — responsive, symmetrical UI ===== */
+/* ===== Co-Work — responsive, symmetrical UI ===== */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
@@ -315,3 +315,12 @@ select{padding-right:8px}
 .agtabs button #agTitle{overflow:hidden;text-overflow:ellipsis}
 .agtabs em{font-style:normal;font-size:.68rem;min-width:22px;text-align:center;padding:1px 7px;border-radius:99px;background:var(--panel);border:1px solid var(--bd);color:var(--ink)}
 .agtabs button.on em{background:rgba(255,255,255,.25);border-color:transparent;color:inherit}
+
+/* profile picture */
+.av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;overflow:hidden;background:var(--acc);color:var(--acci);font-weight:800;flex:none;line-height:1}
+.av img,.avbig img{width:100%;height:100%;object-fit:cover;display:block}
+.av.sm{width:28px;height:28px;font-size:.7rem}
+.av.lg{width:100%;height:100%;font-size:2.4rem}
+.profcard{display:grid;justify-items:center;gap:4px;text-align:center}
+.avbig{width:120px;height:120px;border-radius:50%;overflow:hidden;border:3px solid var(--acc);display:flex;margin-bottom:6px}
+.profdlg>.btn{width:100%}

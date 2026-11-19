@@ -1,4 +1,4 @@
-// Smart Calendar Task Board - Netlify Function API (routes: /api/*)
+// Co-Work - Netlify Function API (routes: /api/*)
 // Storage: Netlify Blobs. Sessions: HttpOnly cookie + revocable server-side session blob.
 import { getStore } from '@netlify/blobs';
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
@@ -22,7 +22,11 @@ const UN = /^[a-z0-9_.-]{3,30}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const COLOR = /^#[0-9a-f]{3,8}$/i;
 const COOKIE = 'stb_sess', SESSION_MS = 30 * 864e5;
+const AVATAR_COOLDOWN = 15 * 864e5, AVATAR_MAX = 250 * 1024;   // profile picture: one change per 15 days, <= 250 KB
 const MAX_FAILS = 5, LOCK_MS = 15 * 60 * 1000;
+const CH_ID = /^[a-z0-9-]{1,24}$/, CHAT_MAX = 300, CHAT_SHOW = 80, MAX_CH = 6;   // group chat: channel slug, messages kept per channel, messages sent per poll, channel cap
+const ONLINE_MS = 75e3, TYPING_MS = 7e3;                                          // "online" = polled in the last 75 s (a background tab polls every 60 s); "typing" = typed in the last 7 s
+const ROLE_ORDER = { admin: 0, host: 1, staff: 2 };
 
 // ---------- storage helpers ----------
 // Read-modify-write with optimistic concurrency (retries if someone else wrote first).
@@ -56,6 +60,7 @@ const mutShared = (st, fn) => mutate(st, 'shared', () => ({ tasks: [] }), fn);
 
 const pub = (u, all) => ({
   id: u.id, username: u.username, name: u.name, role: u.role, active: u.active, created: u.created, mustChange: !!u.mustChange,
+  avatarAt: u.avatarAt || 0, avatarNext: u.avatarAt ? u.avatarAt + AVATAR_COOLDOWN : 0,
   hostIds: u.role === 'staff' ? u.hostIds : [],
   hostNames: u.role === 'staff' ? u.hostIds.map(id => all.find(x => x.id === id)?.name).filter(Boolean) : [],
 });
@@ -104,6 +109,18 @@ function cleanBoard(b) {
     })).filter(t => t.id && t.title),
   };
 }
+
+// ---------- group chat ----------
+// Storage: chat:channels = [{id,name}] · chat:<channel> = { rev, msgs[] } (rev bumps on every send/edit/delete) · pres:<userId> = { t, ty } (heartbeat + typing)
+const chanList = async st => (await st.get('chat:channels', { type: 'json' })) || [{ id: 'general', name: 'general' }];
+const mutChat = (st, ch, fn) => mutate(st, 'chat:' + ch, () => ({ rev: 0, msgs: [] }), fn);
+const chatMsg = (m, me, us) => {
+  const u = us.find(x => x.id === m.uid);
+  return { id: m.id, uid: m.uid, name: u ? (u.name || u.username) : 'Deleted user', role: u ? u.role : 'staff', avatarAt: u?.avatarAt || 0,
+    text: m.text, ts: m.ts, edited: !!m.edited, mine: m.uid === me.id, canDel: m.uid === me.id || me.role === 'admin' };   // Heads can remove anyone's message; only the author can edit
+};
+const chatText = v => { const t = String(v ?? '').trim().slice(0, 1000); if (!t) throw H('Type a message first.'); return t; };
+const parseSeen = q => Object.fromEntries(String(q || '').split(',').map(p => p.split(':')).filter(([k, v]) => CH_ID.test(k || '') && v !== '' && Number(v) >= 0).map(([k, v]) => [k, Number(v)]));
 
 // ---------- handler ----------
 export default async (req) => {
@@ -167,6 +184,105 @@ export default async (req) => {
       let pv = 0;
       await mutUsers(st, list => { const u = list.find(x => x.id === me.id); u.salt = randomBytes(8).toString('hex'); u.hash = hp(next, u.salt); u.pv = (u.pv || 0) + 1; pv = u.pv; delete u.mustChange; });
       await st.setJSON('sess:' + token, { ...sess, pv });   // this device stays signed in; every other session is now invalid
+      return J({ ok: 1 });
+    }
+
+    // ----- profile picture -----
+    const am = path.match(/^\/avatar(?:\/([\w-]+))?$/);   // /avatar = mine, /avatar/<id> = a teammate's (shown in the group chat)
+    if (am && m === 'GET') {
+      const a = await st.get('avatar:' + (am[1] || me.id), { type: 'json' });
+      if (!a) throw H('No profile picture', 404);
+      return new Response(Buffer.from(a.b64, 'base64'), { status: 200, headers: { 'Content-Type': a.type, 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' } });
+    }
+    if (path === '/avatar' && m === 'POST') {
+      const mt = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(String(body.image || ''));
+      if (!mt) throw H('Please choose a JPG, PNG or WebP image.');
+      const buf = Buffer.from(mt[2], 'base64');
+      if (buf.length > AVATAR_MAX) throw H('Picture is too large (max 250 KB after resizing).', 413);
+      const magic = { 'image/jpeg': b => b[0] === 0xff && b[1] === 0xd8, 'image/png': b => b.subarray(1, 4).toString() === 'PNG', 'image/webp': b => b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP' };
+      if (!magic[mt[1]](buf)) throw H('That file is not a valid image.');
+      let at = 0;
+      await mutUsers(st, async list => {
+        const u = list.find(x => x.id === me.id);
+        const wait = (u.avatarAt || 0) + AVATAR_COOLDOWN - Date.now();   // enforced here, not just in the browser
+        if (u.avatarAt && wait > 0) throw H(`You can change your picture again in ${Math.ceil(wait / 864e5)} day(s).`, 429);
+        await st.setJSON('avatar:' + me.id, { type: mt[1], b64: mt[2] });
+        u.avatarAt = at = Date.now();
+      });
+      return J({ ok: 1, avatarAt: at, avatarNext: at + AVATAR_COOLDOWN });
+    }
+
+    // ----- group chat (floating dock) -----
+    if (path === '/chat' && m === 'GET') {
+      const q = new URL(req.url).searchParams, now = Date.now();
+      const chans = await chanList(st);
+      const ch = chans.find(c => c.id === q.get('ch'))?.id || null;
+      const ty = chans.find(c => c.id === q.get('typing'))?.id || null;
+      await st.setJSON('pres:' + me.id, { t: now, ty: ty ? { c: ty, t: now } : null });                 // heartbeat: one key per person, so polls never collide
+      const people = us.filter(u => u.active);
+      const pres = Object.fromEntries(await Promise.all(people.map(async u => [u.id, u.id === me.id ? { t: now, ty: ty ? { c: ty, t: now } : null } : await st.get('pres:' + u.id, { type: 'json' })])));
+      const on = people.filter(u => pres[u.id] && now - pres[u.id].t < ONLINE_MS);
+      const seen = parseSeen(q.get('seen')), unseen = q.get('seen') ? 0 : Infinity;   // no 'seen' at all = brand-new browser (nothing unread); a channel missing from a known list = created since, so all of it is unread
+      let rev = 0, msgs;
+      const channels = [];
+      for (const c of chans) {
+        const d = (await st.get('chat:' + c.id, { type: 'json' })) || { rev: 0, msgs: [] };
+        channels.push({ id: c.id, name: c.name, last: d.msgs.at(-1)?.ts || 0, unread: Math.min(99, d.msgs.filter(x => x.uid !== me.id && x.ts > (seen[c.id] ?? unseen)).length) });
+        if (c.id === ch) { rev = d.rev || 0; if (rev !== Number(q.get('rev'))) msgs = d.msgs.slice(-CHAT_SHOW).map(x => chatMsg(x, me, us)); }
+      }
+      const card = u => ({ id: u.id, name: u.name || u.username, role: u.role, avatarAt: u.avatarAt || 0 });
+      return J({
+        me: card(me), ch, rev, channels, ...(msgs ? { msgs } : {}),
+        online: on.sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || (a.name || '').localeCompare(b.name || '')).map(u => ({ ...card(u), typing: u.id !== me.id && pres[u.id].ty?.c === ch && now - pres[u.id].ty.t < TYPING_MS })),
+        offline: people.length - on.length,
+      });
+    }
+    if (path === '/chat/send' && m === 'POST') {
+      const ch = (await chanList(st)).find(c => c.id === body.ch)?.id;
+      if (!ch) throw H('Channel not found', 404);
+      const text = chatText(body.text);
+      let msg;
+      await mutChat(st, ch, d => {
+        msg = { id: 'm_' + randomBytes(6).toString('hex'), uid: me.id, text, ts: Math.max(Date.now(), (d.msgs.at(-1)?.ts || 0) + 1) };   // ts is strictly increasing per channel
+        d.msgs.push(msg); if (d.msgs.length > CHAT_MAX) d.msgs.splice(0, d.msgs.length - CHAT_MAX); d.rev = (d.rev || 0) + 1;
+      });
+      return J(chatMsg(msg, me, us), 201);
+    }
+    const cm = path.match(/^\/chat\/msg\/([\w-]+)$/);
+    if (cm && (m === 'PUT' || m === 'DELETE')) {
+      const ch = (await chanList(st)).find(c => c.id === new URL(req.url).searchParams.get('ch'))?.id;
+      if (!ch) throw H('Channel not found', 404);
+      const text = m === 'PUT' ? chatText(body.text) : '';
+      const out = await mutChat(st, ch, d => {
+        const i = d.msgs.findIndex(x => x.id === cm[1]), x = d.msgs[i];
+        if (!x) throw H('Message not found', 404);
+        if (m === 'DELETE') { if (x.uid !== me.id && me.role !== 'admin') throw H('You can only delete your own messages.', 403); d.msgs.splice(i, 1); d.rev = (d.rev || 0) + 1; return null; }
+        if (x.uid !== me.id) throw H('You can only edit your own messages.', 403);
+        x.text = text; x.edited = true; d.rev = (d.rev || 0) + 1; return x;
+      });
+      return out ? J(chatMsg(out, me, us)) : J({ ok: 1 });
+    }
+    if (path === '/chat/channels' && m === 'POST') {
+      if (me.role !== 'admin') throw H('Only Heads can add channels.', 403);
+      const id = String(body.name || '').trim().toLowerCase().replace(/[\s_]+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '').slice(0, 24);
+      if (!CH_ID.test(id)) throw H('Channel name: letters, numbers and dashes.');
+      await mutate(st, 'chat:channels', () => [{ id: 'general', name: 'general' }], list => {
+        if (list.some(c => c.id === id)) throw H('That channel already exists.');
+        if (list.length >= MAX_CH) throw H(`You can have up to ${MAX_CH} channels.`);
+        list.push({ id, name: id });
+      });
+      return J({ ok: 1, id }, 201);
+    }
+    const chm = path.match(/^\/chat\/channels\/([a-z0-9-]+)$/);
+    if (chm && m === 'DELETE') {
+      if (me.role !== 'admin') throw H('Only Heads can remove channels.', 403);
+      if (chm[1] === 'general') throw H('The general channel cannot be removed.');
+      await mutate(st, 'chat:channels', () => [{ id: 'general', name: 'general' }], list => {
+        const i = list.findIndex(c => c.id === chm[1]);
+        if (i < 0) throw H('Channel not found', 404);
+        list.splice(i, 1);
+      });
+      await st.delete('chat:' + chm[1]);
       return J({ ok: 1 });
     }
 
@@ -299,6 +415,8 @@ export default async (req) => {
           list.forEach(u => { u.hostIds = u.hostIds.filter(h => h !== id); });
         });
         await st.delete('board:' + id);
+        await st.delete('avatar:' + id);
+        await st.delete('pres:' + id);
         await mutShared(st, sh => sh.tasks.forEach(t => {
           t.assignees = t.assignees.filter(a => a.id !== id); t.hostIds = t.hostIds.filter(h => h !== id);
           if (!t.assignees.length) t.status = 'trash';

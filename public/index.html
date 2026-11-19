@@ -5,23 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#6366f1">
 <meta name="color-scheme" content="light dark">
-<title>Smart Calendar Task Board (PH)</title>
+<title>Co-Work</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Fredoka:wght@400..700&family=Quicksand:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="chat.css">
 </head>
 <body class="th-white" data-mode="personal">
 <script src="auth.js"></script>
 <header class="panel top">
   <div class="brand">
-    <h1>🗓️ Smart Calendar Task Board</h1>
+    <h1>🗓️ Co-Work</h1>
     <p class="sub">Philippine calendar · tap a date to open its board</p>
   </div>
   <div class="toolbar">
     <span class="stat who-tag" id="who"></span>
     <a class="mini" id="usersLink" href="users.html" hidden>👥 Users</a>
     <span class="starwrap" id="starWrap" hidden><button class="mini star" id="starBtn" aria-label="All users' sticky notes" aria-haspopup="true" aria-expanded="false" title="">★</button><div class="starpop" id="starPop" hidden><a class="btn pri" href="overview.html">⭐ Open all users' sticky notes ↗</a></div></span>
+    <button class="mini" id="profBtn">👤 Profile</button>
     <button class="mini" id="acctBtn">🔑 Password</button>
     <button class="mini" onclick="logout()">⎋ Log out</button>
     <div class="themes" role="group" aria-label="Theme">
@@ -95,7 +97,25 @@
     <div class="row"><button class="btn pri" type="submit">Save password</button><button class="btn" type="button" id="cpX">Cancel</button></div>
   </form>
 </div>
+<div id="prof" class="overlay" hidden>
+  <div class="panel dlg profdlg" role="dialog" aria-modal="true" aria-labelledby="profT">
+    <h2 id="profT">👤 My profile</h2>
+    <div class="profcard">
+      <div class="avbig" id="avBig"></div>
+      <b id="profName"></b>
+      <span class="sub" id="profSub"></span>
+    </div>
+    <p class="sub" id="avNote"></p>
+    <input id="avFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+    <div class="row">
+      <button class="btn" type="button" id="avPick">📷 Choose photo</button>
+      <button class="btn pri" type="button" id="avSave" disabled>Save photo</button>
+    </div>
+    <button class="btn" type="button" id="profX">Close</button>
+  </div>
+</div>
 <div id="toast"></div>
 <script src="app.js"></script>
+<script src="chat.js" defer></script>
 </body>
 </html>

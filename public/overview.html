@@ -1,18 +1,19 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>All Users' Notes · Smart Calendar Task Board</title>
+<title>All Users' Notes · Co-Work</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400..700&family=Quicksand:wght@400..700&family=Architects+Daughter&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="chat.css">
 <style>
 .ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--gap);margin-top:14px}
 .ctl label{display:grid;gap:4px;font-size:.68rem;font-weight:800;text-transform:uppercase;opacity:.9}
 .ctl select{width:100%}
-.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--soft);border:1px solid var(--bd);border-radius:var(--r);max-width:1100px;margin:0 auto 14px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;background:var(--soft);border:1px solid var(--bd);border-radius:var(--r);max-width:1100px;margin:0 auto 14px}
 .seg button{min-height:40px;border:0;border-radius:10px;background:transparent;font-weight:800;opacity:.7}
 .seg button.on{background:var(--acc);color:var(--acci);opacity:1}
 .ulist{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .up{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border:2px solid var(--bd);border-radius:99px;background:var(--soft);font-size:.78rem;font-weight:800}
-.up b{background:var(--panel);border:1px solid var(--bd);border-radius:99px;padding:0 8px;font-size:.7rem}
+.up b{color:var(--ink);background:var(--panel);border:1px solid var(--bd);border-radius:99px;padding:0 8px;font-size:.7rem}
 .up.on{border-color:var(--acc);background:var(--acc);color:var(--acci)}
 .row2{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
 .chip b{font-weight:800}
@@ -41,7 +42,7 @@
     </div>
   </div>
   <div class="ctl">
-    <label>Show<select id="fSrc"><option value="all">Personal + Shared</option><option value="personal">Personal only</option><option value="shared">Shared only</option></select></label>
+    <label>Show<select id="fSrc"><option value="all">Both</option><option value="personal">Personal</option><option value="shared">Shared</option></select></label>
     <label>Status<select id="fStatus"><option value="active">Active</option><option value="done">Completed</option><option value="trash">Trash</option><option value="all">All</option></select></label>
     <label>Priority<select id="fPri"><option value="all">All</option><option>Now</option><option>Next</option><option>Later</option></select></label>
     <label>Sort by<select id="fSort"><option value="date">Date</option><option value="user">User (A–Z)</option><option value="priority">Priority</option><option value="status">Status</option><option value="title">Title (A–Z)</option></select></label>
@@ -51,7 +52,7 @@
   <div class="ulist" id="ulist" role="group" aria-label="Filter by user"></div>
 </header>
 
-<div class="seg" role="tablist"><button id="vCal" class="on">📅 Calendar</button><button id="vList">📋 List &amp; Sort</button></div>
+<div class="seg" role="tablist"><button id="vCal" class="on">📅 Calendar</button><button id="vList">📋 List &amp; Sort</button><button id="vDone">✅ Completed <em id="nDone" style="font-style:normal;font-size:.7rem;border:1px solid var(--bd);background:var(--panel);color:var(--ink);border-radius:99px;padding:1px 8px">0</em></button></div>
 
 <main class="panel" id="calP">
   <div class="calbar"><button class="btn" id="prev" aria-label="Previous month">‹</button><h2 id="mt"></h2><button class="btn" id="next" aria-label="Next month">›</button><button class="btn" id="goToday">Today</button></div>
@@ -62,6 +63,11 @@
 <main class="panel" id="listP" hidden>
   <div class="row2"><h3 id="lh">Notes</h3><label class="sub" style="display:flex;gap:6px;align-items:center;font-weight:800"><input type="checkbox" id="grp" style="min-height:0;width:18px;height:18px"> Group by user</label></div>
   <div id="list"></div>
+</main>
+
+<main class="panel" id="doneP" hidden>
+  <div class="row2"><h3 id="dh">Completed</h3><span class="sub">Newest first · grouped by user</span></div>
+  <div id="doneList"></div>
 </main>
 
 <div class="overlay" id="modal" hidden><section class="panel board"><div class="bhead"><div><h2 id="mh"></h2><span class="pill" id="mc"></span></div><button class="x" id="mx" aria-label="Close">×</button></div><div id="mb" style="margin-top:14px"></div></section></div>
@@ -80,11 +86,12 @@ const uname=id=>UM[id]?.name||'Unknown';
 const fmt=d=>{const[y,m,dd]=d.split('-').map(Number);return new Date(y,m-1,dd).toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric',year:'numeric'})};
 
 const icon={Now:'🔴',Next:'🟡',Later:'🟢'};
-function filtered(src=f.src,status=f.status){
+function filtered(src=f.src,status=statusNow()){
   const q=f.q.trim().toLowerCase();
   return T.filter(t=>(src==='all'||t.src===src)&&t.uids.some(u=>sel.has(u)||!UM[u])&&(status==='all'||t.state===status)&&(f.pri==='all'||t.priority===f.pri)
     &&(!q||(t.title+' '+(t.description||'')).toLowerCase().includes(q)));
 }
+const statusNow=()=>view==='done'?'done':f.status;
 const owner=t=>t.src==='shared'?(t.assignees[0]?.name||'Shared'):uname(t.userId);
 function sorted(L){
   const d=f.dir,c={date:(a,b)=>a.date.localeCompare(b.date),user:(a,b)=>owner(a).localeCompare(owner(b)),
@@ -92,7 +99,7 @@ function sorted(L){
   return [...L].sort((a,b)=>d*c(a,b)||a.date.localeCompare(b.date)||a.title.localeCompare(b.title));
 }
 function users(){
-  const base=T.filter(t=>(f.src==='all'||t.src===f.src)&&(f.status==='all'||t.state===f.status));
+  const base=T.filter(t=>(f.src==='all'||t.src===f.src)&&(statusNow()==='all'||t.state===statusNow()));
   $('#ulist').innerHTML=`<button class="up${sel.size===U.length?' on':''}" data-u="*">Everyone <b>${base.length}</b></button>`+
     U.map(u=>`<button class="up${sel.has(u.id)?' on':''}" data-u="${esc(u.id)}" title="${esc(ROLE[u.role])}${u.active?'':' · disabled'}">${esc(u.name)}${u.active?'':' ⛔'} <b>${base.filter(t=>t.uids.includes(u.id)).length}</b></button>`).join('');
 }
@@ -100,7 +107,16 @@ function card(t,showUser=true){
   const sh=t.src==='shared',n=sh?t.assignees.length:0,dn=sh?t.assignees.filter(a=>a.done).length:0;
   return `<div class="card pri-${t.priority}"><div class="top2"><h4>${esc(t.title)}</h4><span class="sw3" style="background:${esc(t.color)};margin:0;flex:none" title="Note colour"></span></div>
   ${t.description?`<p>${esc(t.description)}</p>`:''}
-  <div class="tags"><span>${sh?'👥 Shared':'👤 Personal'}</span>${sh?`<span>From: ${esc(t.createdByName)}</span><span>To: ${esc(t.assignees.map(a=>(a.done?'✔ ':'')+a.name).join(', '))}</span><span>${dn}/${n} done</span>`:(showUser?`<span>Owner: ${esc(uname(t.userId))}</span>`:'')}<span>📅 ${esc(fmt(t.date))}</span><span>${icon[t.priority]} ${t.priority}</span><span>${ST[t.state]}${!sh&&t.state==='done'&&t.completed?' · '+esc(t.completed):''}</span>${t.pinned?'<span>📌</span>':''}${t.favorite?'<span>⭐</span>':''}</div></div>`;
+  <div class="tags"><span>${sh?'👥 Shared':'👤 Personal'}</span>${sh?`<span>From: ${esc(t.createdByName)}</span><span>To: ${esc(t.assignees.map(a=>(a.done?'✔ ':'')+a.name).join(', '))}</span><span>${dn}/${n} done</span>`:(showUser?`<span>Owner: ${esc(uname(t.userId))}</span>`:'')}<span>📅 ${esc(fmt(t.date))}</span><span>${icon[t.priority]} ${t.priority}</span><span>${ST[t.state]}</span>${t.pinned?'<span>📌</span>':''}${t.favorite?'<span>⭐</span>':''}</div></div>`;
+}
+const doneOn=t=>t.src==='shared'?(t.assignees.map(a=>a.doneAt).filter(Boolean).sort().pop()||t.date):(t.completed||t.date);
+function renderDone(){
+  const L=filtered().sort((a,b)=>doneOn(b).localeCompare(doneOn(a))||a.title.localeCompare(b.title));
+  $('#dh').textContent=`${L.length} completed task${L.length===1?'':'s'}`;
+  if(!L.length){$('#doneList').innerHTML='<div class="empty">No completed tasks for these filters.</div>';return}
+  const g={};L.forEach(t=>{const k=t.src==='shared'?'~shared':t.userId;(g[k]=g[k]||[]).push(t)});
+  const nm=k=>k==='~shared'?'👥 Shared tasks':'👤 '+uname(k);
+  $('#doneList').innerHTML=Object.keys(g).sort((a,b)=>(a==='~shared')-(b==='~shared')||uname(a).localeCompare(uname(b))).map(k=>`<div class="gh"><span>${esc(nm(k))}</span><span class="sub">${g[k].length} done</span></div>`+g[k].map(t=>card(t,false).replace('</div></div>',`<span>✔ Finished ${esc(doneOn(t))}</span></div></div>`)).join('')).join('');
 }
 function renderCal(){
   const L=filtered(),by={};L.forEach(t=>(by[t.date]=by[t.date]||[]).push(t));
@@ -126,8 +142,9 @@ function render(){
   const L=filtered();
   $('#cUsers').textContent=sel.size;$('#cNotes').textContent=L.length;$('#cAll').textContent=T.length;
   users();
-  $('#calP').hidden=view!=='cal';$('#listP').hidden=view!=='list';
-  view==='cal'?renderCal():renderList();
+  $('#calP').hidden=view!=='cal';$('#listP').hidden=view!=='list';$('#doneP').hidden=view!=='done';
+  $('#nDone').textContent=T.filter(t=>t.state==='done'&&(f.src==='all'||t.src===f.src)&&t.uids.some(u=>sel.has(u)||!UM[u])).length;
+  view==='cal'?renderCal():view==='list'?renderList():renderDone();
 }
 function openDay(k){
   const L=sorted(filtered().filter(t=>t.date===k));
@@ -145,8 +162,8 @@ $('#ulist').onclick=e=>{const b=e.target.closest('.up');if(!b)return;const id=b.
 $('#prev').onclick=()=>{vm--;if(vm<0){vm=11;vy--}render()};
 $('#next').onclick=()=>{vm++;if(vm>11){vm=0;vy++}render()};
 $('#goToday').onclick=()=>{const t=todayStr().split('-').map(Number);vy=t[0];vm=t[1]-1;render()};
-$('#vCal').onclick=()=>{view='cal';$('#vCal').classList.add('on');$('#vList').classList.remove('on');render()};
-$('#vList').onclick=()=>{view='list';$('#vList').classList.add('on');$('#vCal').classList.remove('on');render()};
+const setView=v=>{view=v;[['cal','#vCal'],['list','#vList'],['done','#vDone']].forEach(([k,id])=>$(id).classList.toggle('on',k===v));render()};
+$('#vCal').onclick=()=>setView('cal');$('#vList').onclick=()=>setView('list');$('#vDone').onclick=()=>setView('done');
 [['#fSrc','src'],['#fStatus','status'],['#fPri','pri'],['#fSort','sort']].forEach(([s,k])=>$(s).onchange=e=>{f[k]=e.target.value;render()});
 $('#fDir').onchange=e=>{f.dir=+e.target.value;render()};
 $('#fQ').oninput=e=>{f.q=e.target.value;render()};
@@ -159,4 +176,5 @@ $('#grp').onchange=render;
   catch(e){if(e.status===401)return location.replace('login.html');toast('⚠️ '+e.message);return}
   const t=todayStr().split('-').map(Number);vy=t[0];vm=t[1]-1;render();
 })();
-</script></body></html>
+</script><script src="chat.js" defer></script>
+</body></html>
