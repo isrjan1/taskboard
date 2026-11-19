@@ -45,7 +45,7 @@ Runs 81 checks against the real API with an in-memory stand-in for Netlify Blobs
 See `IMPROVEMENTS.md` for the review, the logout fix, and what changed in v2.2.
 
 ## Group chat
-A small 💬 **Group chat** pill sits in the bottom-right corner of every page (like the Facebook chat dock). Click it to open the chat.
+A small 💬 **Group chat** pill sits in the bottom-right corner of every page (like the Facebook chat dock). Click it to open the chat, or drag it anywhere you like (position is remembered).
 - **Drag the chat window** by its header and the **Online now** list pops out beside it (Discord-style member list, grouped Heads / Supervisors / Staff, with a typing indicator). On touch screens use the 👥 button. Double-click the header to snap the window back to the corner.
 - **Channels** (`# general` always exists). Heads can add or remove channels (＋ / 🗑); up to 6.
 - Everyone can **edit** their own messages and **delete** their own; Heads can delete anyone's. Links are clickable, messages are plain text (no HTML), 1000 characters max, last 300 kept per channel.

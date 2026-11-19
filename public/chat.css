@@ -107,3 +107,9 @@ body.cw-drag{user-select:none;-webkit-user-select:none;cursor:grabbing}
   .cw-msg{padding:5px 12px}
 }
 @media(prefers-reduced-motion:reduce){.cw-dots i{animation:none}}
+
+/* ---- make the pill easy to find ---- */
+.cw-pill{background:var(--acc);color:var(--acci);border-color:var(--acc);font-size:.95rem;min-height:calc(var(--ctl) + 6px);padding:0 20px;touch-action:none;cursor:grab;animation:cwpulse 2.4s ease-out 3}
+.cw-pill.drag{cursor:grabbing;transition:none}
+.cw-pill .cw-live{opacity:.95}
+@keyframes cwpulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 55%,transparent)}70%,100%{box-shadow:0 0 0 16px transparent}}

@@ -29,7 +29,7 @@
   const root = document.createElement('div');
   root.className = 'cw';
   root.innerHTML = `
-<button class="cw-pill" id="cwPill" type="button" aria-label="Open group chat"><span aria-hidden="true">💬</span><span>Group chat</span><span class="cw-live" id="cwLive" hidden></span><em class="cw-badge" id="cwBadge" hidden></em></button>
+<button class="cw-pill" id="cwPill" type="button" aria-label="Open group chat" title="Click to open · drag to move"><span aria-hidden="true">💬</span><span>Group chat</span><span class="cw-live" id="cwLive" hidden></span><em class="cw-badge" id="cwBadge" hidden></em></button>
 <section class="cw-win" id="cwWin" role="dialog" aria-label="Group chat" hidden>
   <header class="cw-head" id="cwHead" title="Drag to move · double-click to put it back">
     <div class="cw-title"><b id="cwTitle"># general</b><small id="cwSub">Connecting…</small></div>
@@ -267,7 +267,31 @@
   function autosize() { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 96) + 'px'; }
 
   /* ---------- events ---------- */
-  $('#cwPill').onclick = () => setOpen(true, true);
+  /* pill: drag it anywhere (remembered); a plain click opens the chat */
+  const pill = $('#cwPill'); let pd = null, pMoved = false;
+  const placePill = () => {
+    const P = LS.get('cw_pill', null);
+    if (!P || isMobile()) { pill.style.left = pill.style.top = ''; pill.style.right = pill.style.bottom = ''; return; }
+    const x = Math.min(Math.max(8, P.x), Math.max(8, innerWidth - pill.offsetWidth - 8)), y = Math.min(Math.max(8, P.y), Math.max(8, innerHeight - pill.offsetHeight - 8));
+    pill.style.left = x + 'px'; pill.style.top = y + 'px'; pill.style.right = pill.style.bottom = 'auto';
+  };
+  pill.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const r = pill.getBoundingClientRect(); pd = { dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY }; pMoved = false;
+    pill.setPointerCapture(e.pointerId);
+  });
+  pill.addEventListener('pointermove', e => {
+    if (!pd) return;
+    if (!pMoved && Math.hypot(e.clientX - pd.x, e.clientY - pd.y) < 6) return;
+    pMoved = true; pill.classList.add('drag');
+    pill.style.left = Math.min(Math.max(8, e.clientX - pd.dx), innerWidth - pill.offsetWidth - 8) + 'px';
+    pill.style.top = Math.min(Math.max(8, e.clientY - pd.dy), innerHeight - pill.offsetHeight - 8) + 'px';
+    pill.style.right = pill.style.bottom = 'auto';
+  });
+  const endPill = () => { if (!pd) return; if (pMoved) LS.set('cw_pill', { x: parseFloat(pill.style.left), y: parseFloat(pill.style.top) }); pill.classList.remove('drag'); pd = null; };
+  pill.addEventListener('pointerup', endPill); pill.addEventListener('pointercancel', endPill);
+  pill.onclick = () => { if (pMoved) { pMoved = false; return; } setOpen(true, true); };
+  addEventListener('resize', placePill); placePill();
   $('#cwMin').onclick = () => { setOpen(false); $('#cwPill').focus(); };
   $('#cwMem').onclick = () => setMembers(!S.members);
   mem.addEventListener('click', e => { if (e.target.closest('[data-a=closem]')) setMembers(false); });
