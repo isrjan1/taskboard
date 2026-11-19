@@ -246,7 +246,8 @@ export default async (req) => {
       if (me.id !== DEFAULT_ADMIN) throw H('Not allowed', 403);
       const tasks = [];
       for (const u of us) { const b = await st.get('board:' + u.id, { type: 'json' }); for (const t of (b?.tasks || [])) tasks.push({ ...t, userId: u.id }); }
-      return J({ users: us.map(u => ({ id: u.id, name: u.name || u.username, username: u.username, role: u.role, active: u.active })), tasks });
+      const sh = (await st.get('shared', { type: 'json' })) || { tasks: [] };   // the admin can manage every shared task, so the DTO shows all of them (incl. trash)
+      return J({ users: us.map(u => ({ id: u.id, name: u.name || u.username, username: u.username, role: u.role, active: u.active })), tasks, shared: sh.tasks.map(t => taskDTO(t, me, us)) });
     }
 
     // ----- admin only -----

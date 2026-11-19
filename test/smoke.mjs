@@ -114,6 +114,7 @@ const hb = await H2('/me');
 check('a user can save a personal note', (await H2('/board', 'PUT', { theme: 'white', tasks: [{ id: 'ov1', title: 'head2 private note', date: '2026-03-05' }], rev: hb.d.board?.rev ?? 0 })).status === 200);
 const ov = await N('/personal-all');
 check('the default admin sees every user and their notes', ov.status === 200 && ov.d.users.length >= 2 && ov.d.tasks.some(t => t.title === 'head2 private note' && t.userId === id('head2')));
+check('the overview also returns every shared task (incl. ones the admin is not assigned to)', Array.isArray(ov.d.shared) && ov.d.shared.length >= 2 && ov.d.shared.every(x => x.assignees && x.createdByName));
 check('the overview never exposes password hashes', !JSON.stringify(ov.d).includes('hash') && !JSON.stringify(ov.d).includes('salt'));
 check('the overview is read-only (no write route)', (await N('/personal-all', 'PUT', {})).status === 404);
 

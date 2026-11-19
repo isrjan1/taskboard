@@ -107,16 +107,30 @@ $('#next').onclick=()=>{vm++;if(vm>11){vm=0;vy++}renderCal()};
 $('#goToday').onclick=()=>{vy=t0[0];vm=t0[1]-1;renderCal()};
 $('#fil').onchange=e=>{fil=e.target.value;renderAll()};
 
+let agTab='soon';
 function renderAgenda(){
-  const tds=todayStr(),lim=addDays(tds,7);
-  const L=items().filter(t=>t.state==='active'&&t.date<=lim).sort((a,b)=>a.date.localeCompare(b.date)||PRI[a.priority]-PRI[b.priority]);
-  $('#agTitle').textContent=mode==='personal'?'📌 My notes — overdue & next 7 days':(isMgr()?'📌 Team tasks — overdue & next 7 days':'📌 Assigned to me — overdue & next 7 days');
+  const tds=todayStr(),lim=addDays(tds,7),all=items();
   const lab=d=>d<tds?'Overdue':d===tds?'Today':d===addDays(tds,1)?'Tomorrow':new Date(d+'T00:00:00').toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric'});
+  const D=all.filter(t=>t.state==='done');
+  $('#agDoneN').textContent=D.length;
+  $('#agTitle').textContent=mode==='personal'?'My notes — due soon':(isMgr()?'Team tasks — due soon':'Assigned to me — due soon');
+  document.querySelectorAll('.agtabs button').forEach(b=>{const on=b.dataset.ag===agTab;b.classList.toggle('on',on);b.setAttribute('aria-selected',on)});
+  if(agTab==='done'){   // newest finished first; shared tasks show when everyone (managers) / you (assignees) finished
+    const dd=t=>mode==='personal'?(t.completed||t.date):(t.canManage?(t.assignees.map(a=>a.doneAt).filter(Boolean).sort().pop()||t.date):((t.assignees.find(a=>a.id===ME.id)||{}).doneAt||t.date));
+    const L=D.map(t=>({t,d:dd(t)})).sort((a,b)=>b.d.localeCompare(a.d));
+    $('#agList').innerHTML=L.length?L.slice(0,30).map(({t,d})=>`<button class="ag" data-d="${t.date}">
+      <span class="d" style="color:#059669">✔ ${esc(new Date(d+'T00:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric'}))}</span><span class="t">${esc(t.title)}</span>
+      <span class="w">${mode==='shared'&&isMgr()?esc(t.assignees.map(a=>a.name).join(', ')):esc(t.priority)}</span></button>`).join('')
+      :'<div class="empty">Nothing completed yet.</div>';
+    return;
+  }
+  const L=all.filter(t=>t.state==='active'&&t.date<=lim).sort((a,b)=>a.date.localeCompare(b.date)||PRI[a.priority]-PRI[b.priority]);
   $('#agList').innerHTML=L.length?L.slice(0,10).map(t=>`<button class="ag" data-d="${t.date}">
     <span class="d${t.date<tds?' late':''}">${lab(t.date)}</span><span class="t">${esc(t.title)}</span>
     <span class="w">${mode==='shared'&&isMgr()?esc(t.assignees.map(a=>a.name).join(', ')):esc(t.priority)}</span></button>`).join('')
     :`<div class="empty">${mode==='shared'&&!isMgr()?'Nothing assigned to you right now 🎉':'All clear — nothing due soon 🎉'}</div>`;
 }
+document.querySelectorAll('.agtabs button').forEach(b=>b.onclick=()=>{agTab=b.dataset.ag;renderAgenda()});
 $('#agList').onclick=e=>{const b=e.target.closest('.ag');if(!b)return;const [y,m]=b.dataset.d.split('-').map(Number);vy=y;vm=m-1;renderCal();openBoard(b.dataset.d)};
 function renderAll(){updateModeLabels();renderCal();renderAgenda();if(openDate&&!editId)renderBoard()}
 

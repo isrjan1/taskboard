@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>All Users' Sticky Notes · Smart Calendar Task Board</title>
+<title>All Users' Notes · Smart Calendar Task Board</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400..700&family=Quicksand:wght@400..700&family=Architects+Daughter&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
@@ -30,7 +30,7 @@
 <body class="th-white">
 <script src="auth.js"></script>
 <header class="panel top">
-  <div class="brand"><h1>⭐ All Users' Sticky Notes</h1><p class="sub">Personal calendars of every user · read-only overview</p></div>
+  <div class="brand"><h1>⭐ All Users' Notes</h1><p class="sub">Every user's personal notes (admin's included) and all shared tasks · read-only</p></div>
   <div class="toolbar">
     <a class="mini" href="index.html">← Back to calendar</a>
     <span class="ro">👁 View only</span>
@@ -41,6 +41,7 @@
     </div>
   </div>
   <div class="ctl">
+    <label>Show<select id="fSrc"><option value="all">Personal + Shared</option><option value="personal">Personal only</option><option value="shared">Shared only</option></select></label>
     <label>Status<select id="fStatus"><option value="active">Active</option><option value="done">Completed</option><option value="trash">Trash</option><option value="all">All</option></select></label>
     <label>Priority<select id="fPri"><option value="all">All</option><option>Now</option><option>Next</option><option>Later</option></select></label>
     <label>Sort by<select id="fSort"><option value="date">Date</option><option value="user">User (A–Z)</option><option value="priority">Priority</option><option value="status">Status</option><option value="title">Title (A–Z)</option></select></label>
@@ -56,7 +57,7 @@
   <div class="calbar"><button class="btn" id="prev" aria-label="Previous month">‹</button><h2 id="mt"></h2><button class="btn" id="next" aria-label="Next month">›</button><button class="btn" id="goToday">Today</button></div>
   <div class="grid head"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
   <div class="grid" id="grid"></div>
-  <p class="sub legend"><span class="dot tdy"></span> Today · numbers show how many notes fall on that day · tap a day to see who owns what</p>
+  <p class="sub legend"><span class="dot tdy"></span> Today · numbers show how many notes fall on that day · shared tasks are marked 👥 · tap a day to see who owns what</p>
 </main>
 <main class="panel" id="listP" hidden>
   <div class="row2"><h3 id="lh">Notes</h3><label class="sub" style="display:flex;gap:6px;align-items:center;font-weight:800"><input type="checkbox" id="grp" style="min-height:0;width:18px;height:18px"> Group by user</label></div>
@@ -73,30 +74,33 @@ const MONTHS=['January','February','March','April','May','June','July','August',
 const ROLE={admin:'Head',host:'Supervisor',staff:'Staff'},PR={Now:0,Next:1,Later:2},ST={active:'Active',done:'Completed',trash:'Trash'};
 const todayStr=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila'}).format(new Date());
 let U=[],T=[],UM={},sel=new Set(),vy,vm,view='cal';
-const f={status:'active',pri:'all',sort:'date',dir:1,q:''};
+const f={src:'all',status:'active',pri:'all',sort:'date',dir:1,q:''};
 const toast=m=>{const d=document.createElement('div');d.textContent=m;$('#toast').append(d);setTimeout(()=>d.remove(),3000)};
 const uname=id=>UM[id]?.name||'Unknown';
 const fmt=d=>{const[y,m,dd]=d.split('-').map(Number);return new Date(y,m-1,dd).toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric',year:'numeric'})};
 
-function filtered(){
+const icon={Now:'🔴',Next:'🟡',Later:'🟢'};
+function filtered(src=f.src,status=f.status){
   const q=f.q.trim().toLowerCase();
-  return T.filter(t=>sel.has(t.userId)&&(f.status==='all'||t.status===f.status)&&(f.pri==='all'||t.priority===f.pri)
+  return T.filter(t=>(src==='all'||t.src===src)&&t.uids.some(u=>sel.has(u)||!UM[u])&&(status==='all'||t.state===status)&&(f.pri==='all'||t.priority===f.pri)
     &&(!q||(t.title+' '+(t.description||'')).toLowerCase().includes(q)));
 }
+const owner=t=>t.src==='shared'?(t.assignees[0]?.name||'Shared'):uname(t.userId);
 function sorted(L){
-  const d=f.dir,c={date:(a,b)=>a.date.localeCompare(b.date),user:(a,b)=>uname(a.userId).localeCompare(uname(b.userId)),
-    priority:(a,b)=>PR[a.priority]-PR[b.priority],status:(a,b)=>a.status.localeCompare(b.status),title:(a,b)=>a.title.localeCompare(b.title)}[f.sort];
+  const d=f.dir,c={date:(a,b)=>a.date.localeCompare(b.date),user:(a,b)=>owner(a).localeCompare(owner(b)),
+    priority:(a,b)=>PR[a.priority]-PR[b.priority],status:(a,b)=>a.state.localeCompare(b.state),title:(a,b)=>a.title.localeCompare(b.title)}[f.sort];
   return [...L].sort((a,b)=>d*c(a,b)||a.date.localeCompare(b.date)||a.title.localeCompare(b.title));
 }
 function users(){
-  const base=T.filter(t=>(f.status==='all'||t.status===f.status));
+  const base=T.filter(t=>(f.src==='all'||t.src===f.src)&&(f.status==='all'||t.state===f.status));
   $('#ulist').innerHTML=`<button class="up${sel.size===U.length?' on':''}" data-u="*">Everyone <b>${base.length}</b></button>`+
-    U.map(u=>`<button class="up${sel.has(u.id)?' on':''}" data-u="${esc(u.id)}" title="${esc(ROLE[u.role])}${u.active?'':' · disabled'}">${esc(u.name)}${u.active?'':' ⛔'} <b>${base.filter(t=>t.userId===u.id).length}</b></button>`).join('');
+    U.map(u=>`<button class="up${sel.has(u.id)?' on':''}" data-u="${esc(u.id)}" title="${esc(ROLE[u.role])}${u.active?'':' · disabled'}">${esc(u.name)}${u.active?'':' ⛔'} <b>${base.filter(t=>t.uids.includes(u.id)).length}</b></button>`).join('');
 }
 function card(t,showUser=true){
+  const sh=t.src==='shared',n=sh?t.assignees.length:0,dn=sh?t.assignees.filter(a=>a.done).length:0;
   return `<div class="card pri-${t.priority}"><div class="top2"><h4>${esc(t.title)}</h4><span class="sw3" style="background:${esc(t.color)};margin:0;flex:none" title="Note colour"></span></div>
   ${t.description?`<p>${esc(t.description)}</p>`:''}
-  <div class="tags">${showUser?`<span>👤 ${esc(uname(t.userId))}</span>`:''}<span>📅 ${esc(fmt(t.date))}</span><span>${{Now:'🔴',Next:'🟡',Later:'🟢'}[t.priority]} ${t.priority}</span><span>${ST[t.status]}${t.status==='done'&&t.completed?' · '+esc(t.completed):''}</span>${t.pinned?'<span>📌</span>':''}${t.favorite?'<span>⭐</span>':''}</div></div>`;
+  <div class="tags"><span>${sh?'👥 Shared':'👤 Personal'}</span>${sh?`<span>From: ${esc(t.createdByName)}</span><span>To: ${esc(t.assignees.map(a=>(a.done?'✔ ':'')+a.name).join(', '))}</span><span>${dn}/${n} done</span>`:(showUser?`<span>Owner: ${esc(uname(t.userId))}</span>`:'')}<span>📅 ${esc(fmt(t.date))}</span><span>${icon[t.priority]} ${t.priority}</span><span>${ST[t.state]}${!sh&&t.state==='done'&&t.completed?' · '+esc(t.completed):''}</span>${t.pinned?'<span>📌</span>':''}${t.favorite?'<span>⭐</span>':''}</div></div>`;
 }
 function renderCal(){
   const L=filtered(),by={};L.forEach(t=>(by[t.date]=by[t.date]||[]).push(t));
@@ -105,7 +109,7 @@ function renderCal(){
   for(let i=0;i<first;i++)h+='<div></div>';
   for(let d=1;d<=dim;d++){
     const k=`${vy}-${pad(vm+1)}-${pad(d)}`,l=by[k]||[];
-    h+=`<button class="cell${k===td?' tdy':''}" data-d="${k}"><span class="n">${d}${l.length?`<em>${l.length}</em>`:''}</span>${sorted(l).slice(0,2).map(t=>`<span class="chip" style="background:${esc(t.color)}"><b>${esc(uname(t.userId).split(' ')[0])}</b> ${esc(t.title)}</span>`).join('')}${l.length>2?`<span class="h">+${l.length-2} more</span>`:''}</button>`;
+    h+=`<button class="cell${k===td?' tdy':''}" data-d="${k}"><span class="n">${d}${l.length?`<em>${l.length}</em>`:''}</span>${sorted(l).slice(0,2).map(t=>`<span class="chip" style="background:${esc(t.color)}"><b>${t.src==='shared'?'👥':esc(owner(t).split(' ')[0])}</b> ${esc(t.title)}</span>`).join('')}${l.length>2?`<span class="h">+${l.length-2} more</span>`:''}</button>`;
   }
   $('#grid').innerHTML=h;
 }
@@ -113,8 +117,9 @@ function renderList(){
   const L=sorted(filtered());$('#lh').textContent=`${L.length} note${L.length===1?'':'s'}`;
   if(!L.length){$('#list').innerHTML='<div class="empty">No notes match these filters.</div>';return}
   if($('#grp').checked){
-    const g={};L.forEach(t=>(g[t.userId]=g[t.userId]||[]).push(t));
-    $('#list').innerHTML=Object.keys(g).sort((a,b)=>uname(a).localeCompare(uname(b))*(f.sort==='user'?f.dir:1)).map(id=>`<div class="gh"><span>👤 ${esc(uname(id))}</span><span class="sub">${g[id].length}</span></div>`+g[id].map(t=>card(t,false)).join('')).join('');
+    const g={};L.forEach(t=>{const k=t.src==='shared'?'~shared':t.userId;(g[k]=g[k]||[]).push(t)});
+    const nm=k=>k==='~shared'?'👥 Shared tasks':'👤 '+uname(k);
+    $('#list').innerHTML=Object.keys(g).sort((a,b)=>(a==='~shared')-(b==='~shared')||uname(a).localeCompare(uname(b))*(f.sort==='user'?f.dir:1)).map(k=>`<div class="gh"><span>${esc(nm(k))}</span><span class="sub">${g[k].length}</span></div>`+g[k].map(t=>card(t,false)).join('')).join('');
   }else $('#list').innerHTML=L.map(t=>card(t)).join('');
 }
 function render(){
@@ -142,7 +147,7 @@ $('#next').onclick=()=>{vm++;if(vm>11){vm=0;vy++}render()};
 $('#goToday').onclick=()=>{const t=todayStr().split('-').map(Number);vy=t[0];vm=t[1]-1;render()};
 $('#vCal').onclick=()=>{view='cal';$('#vCal').classList.add('on');$('#vList').classList.remove('on');render()};
 $('#vList').onclick=()=>{view='list';$('#vList').classList.add('on');$('#vCal').classList.remove('on');render()};
-[['#fStatus','status'],['#fPri','pri'],['#fSort','sort']].forEach(([s,k])=>$(s).onchange=e=>{f[k]=e.target.value;render()});
+[['#fSrc','src'],['#fStatus','status'],['#fPri','pri'],['#fSort','sort']].forEach(([s,k])=>$(s).onchange=e=>{f[k]=e.target.value;render()});
 $('#fDir').onchange=e=>{f.dir=+e.target.value;render()};
 $('#fQ').oninput=e=>{f.q=e.target.value;render()};
 $('#grp').onchange=render;
@@ -150,7 +155,7 @@ $('#grp').onchange=render;
 (async()=>{
   const me=await currentUser();if(!me)return location.replace('login.html');
   if(!me.user.overview)return location.replace('index.html');   // default admin only (server enforces this too)
-  try{const d=await api('/api/personal-all');U=d.users;T=d.tasks;U.sort((a,b)=>a.name.localeCompare(b.name));UM=Object.fromEntries(U.map(u=>[u.id,u]));sel=new Set(U.map(u=>u.id))}
+  try{const d=await api('/api/personal-all');U=d.users;T=[...d.tasks.map(t=>({...t,src:'personal',uids:[t.userId],state:t.status})),...(d.shared||[]).map(t=>({...t,src:'shared',uids:[...new Set([t.createdBy,...t.assignees.map(a=>a.id)])],state:t.status==='trash'?'trash':(t.complete?'done':'active')}))];U.sort((a,b)=>a.name.localeCompare(b.name));UM=Object.fromEntries(U.map(u=>[u.id,u]));sel=new Set(U.map(u=>u.id))}
   catch(e){if(e.status===401)return location.replace('login.html');toast('⚠️ '+e.message);return}
   const t=todayStr().split('-').map(Number);vy=t[0];vm=t[1]-1;render();
 })();

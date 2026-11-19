@@ -308,3 +308,10 @@ select{padding-right:8px}
 .starpop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:250px;padding:8px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh);animation:pop .15s ease-out}
 .starpop .btn{width:100%}
 @media(max-width:700px){.starwrap{justify-self:start}.starpop{position:fixed;left:12px;right:12px;top:auto;bottom:calc(14px + var(--safe-b));min-width:0}}
+
+/* agenda tabs (Due soon | Completed) reuse the modal tab look */
+.agtabs{margin:0 0 12px}
+.agtabs button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:0}
+.agtabs button #agTitle{overflow:hidden;text-overflow:ellipsis}
+.agtabs em{font-style:normal;font-size:.68rem;min-width:22px;text-align:center;padding:1px 7px;border-radius:99px;background:var(--panel);border:1px solid var(--bd);color:var(--ink)}
+.agtabs button.on em{background:rgba(255,255,255,.25);border-color:transparent;color:inherit}

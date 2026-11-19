@@ -63,7 +63,10 @@
 </main>
 
 <section class="panel agenda">
-  <h3 id="agTitle">Coming up</h3>
+  <div class="tabs agtabs" role="tablist" aria-label="Under the calendar">
+    <button class="on" id="agT1" data-ag="soon" role="tab" aria-selected="true">📌 <span id="agTitle">Coming up</span></button>
+    <button id="agT2" data-ag="done" role="tab" aria-selected="false">✅ Completed <em id="agDoneN">0</em></button>
+  </div>
   <div id="agList"></div>
 </section>
 
